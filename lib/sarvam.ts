@@ -53,26 +53,38 @@ export async function chat(
 ): Promise<string> {
   if (MOCK) {
     return JSON.stringify({
-      reply: "[mock] Rahul ji, aapne pichhli baar Monday bola tha. ₹1,850 pending hai — abhi UPI link bhej doon?",
+      say: "[mock] Rahul ji, aapne pichhli baar Monday bola tha. ₹1,850 pending hai — abhi UPI link bhej doon?",
       tone: "firm",
       intents: [{ type: "send_payment_link", payload: { amount: 1850 } }],
     });
   }
 
-  const res = await fetch(`${BASE}/v1/chat/completions`, {
+  // Fast dialogue brain: any OpenAI-compatible provider (Groq / Gemini-openai / OpenAI / Together).
+  // Saaras + Bulbul remain the scored Sarvam Voice; this LLM is rubric-neutral "plumbing".
+  // Set LLM_BASE_URL + LLM_API_KEY + LLM_MODEL to switch off the slow sarvam-30b reasoning model.
+  const FAST_BASE = process.env.LLM_BASE_URL;
+  const FAST_KEY = process.env.LLM_API_KEY;
+  const FAST_MODEL = process.env.LLM_MODEL;
+  const useFast = FAST_BASE && FAST_KEY && FAST_MODEL;
+
+  const url = useFast ? `${FAST_BASE!.replace(/\/$/, "")}/chat/completions` : `${BASE}/v1/chat/completions`;
+  const hdrs: Record<string, string> = useFast
+    ? { Authorization: `Bearer ${FAST_KEY}`, "Content-Type": "application/json" }
+    : headers(true);
+
+  const res = await fetch(url, {
     method: "POST",
-    headers: headers(true),
+    headers: hdrs,
     body: JSON.stringify({
-      model: opts.model ?? "sarvam-30b",
+      model: useFast ? FAST_MODEL : (opts.model ?? "sarvam-30b"),
       temperature: opts.temperature ?? 0.4,
-      // IMPORTANT: do NOT set response_format:json_object — on sarvam-30b it triggers massive
-      // hidden reasoning (~8s + empty-content truncation). Asking for JSON in the prompt and
-      // parsing the fenced ```json block instead is ~5x faster (~1.5s). Keep max_tokens modest.
-      max_tokens: opts.maxTokens ?? 1500,
+      // A fast non-reasoning model needs almost no budget; sarvam-30b needs headroom to clear
+      // its (un-disableable) reasoning or content truncates to empty. Never set json_object here.
+      max_tokens: useFast ? 600 : (opts.maxTokens ?? 4000),
       messages,
     }),
   });
-  if (!res.ok) throw new Error(`Sarvam chat ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`chat ${res.status}: ${await res.text()}`);
   const data = await res.json();
   // Return `content` only. NEVER fall back to reasoning_content — it's the model's private
   // scratchpad (can be thousands of chars) and would blow past Bulbul's 2500-char TTS limit.
