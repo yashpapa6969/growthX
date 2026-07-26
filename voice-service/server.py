@@ -18,7 +18,7 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
 
 load_dotenv()
 
@@ -34,6 +34,20 @@ app = FastAPI(title="Vasooli Relationship Manager")
 from voice_agent import router as voice_router  # noqa: E402
 
 app.include_router(voice_router)
+
+from review import router as review_router  # noqa: E402
+
+app.include_router(review_router)
+
+
+@app.get("/")
+async def index():
+    return RedirectResponse("/dashboard")
+
+
+@app.get("/dashboard")
+async def dashboard():
+    return FileResponse(Path(__file__).parent / "static" / "dashboard.html", media_type="text/html")
 
 
 @app.post("/recording-done")

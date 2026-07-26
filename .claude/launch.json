@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "voice-service",
+      "runtimeExecutable": "voice-service/.venv/bin/python",
+      "runtimeArgs": ["-m", "uvicorn", "--app-dir", "voice-service", "server:app", "--host", "127.0.0.1", "--port", "8010"],
+      "port": 8010
+    }
+  ]
+}

@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vasooli · Call Review</title>
+<style>
+/* ============================================================
+   1. DESIGN TOKENS
+   ============================================================ */
+:root{
+  --page:#f9f9f7;
+  --card:#fcfcfb;
+  --ink:#0b0b0b;
+  --secondary:#52514e;
+  --muted:#898781;
+  --grid:#e1e0d9;
+  --baseline:#c3c2b7;
+  --border:rgba(11,11,11,0.10);
+  --series-1:#2a78d6;
+  --series-2:#eb6834;
+  --success:#006300;
+  --good:#0ca30c;
+  --warning:#fab219;
+  --serious:#ec835a;
+  --critical:#d03b3b;
+  --shadow:0 1px 2px rgba(11,11,11,0.05), 0 2px 6px rgba(11,11,11,0.04);
+  --on-series:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --page:#0d0d0d;
+    --card:#1a1a19;
+    --ink:#ffffff;
+    --secondary:#c3c2b7;
+    --muted:#898781;
+    --grid:#2c2c2a;
+    --baseline:#383835;
+    --border:rgba(255,255,255,0.10);
+    --series-1:#3987e5;
+    --series-2:#d95926;
+    --success:#0ca30c;
+    /* status set re-stated for dark: critical lifted to clear 4.5:1 on the
+       dark card for the small glyphs it colors; the rest already clear it. */
+    --good:#0ca30c;
+    --warning:#fab219;
+    --serious:#ec835a;
+    --critical:#e66767;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --page:#0d0d0d;
+  --card:#1a1a19;
+  --ink:#ffffff;
+  --secondary:#c3c2b7;
+  --muted:#898781;
+  --grid:#2c2c2a;
+  --baseline:#383835;
+  --border:rgba(255,255,255,0.10);
+  --series-1:#3987e5;
+  --series-2:#d95926;
+  --success:#0ca30c;
+  --good:#0ca30c;
+  --warning:#fab219;
+  --serious:#ec835a;
+  --critical:#e66767;
+  --shadow:none;
+}
+
+/* ============================================================
+   2. BASE
+   ============================================================ */
+*,*::before,*::after{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:var(--page);
+  color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:14px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+button{ font:inherit; color:inherit; background:none; border:none; padding:0; cursor:pointer; }
+input,textarea{ font:inherit; color:var(--ink); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{
+  outline:2px solid var(--series-1); outline-offset:2px; border-radius:6px;
+}
+.num{ font-variant-numeric:tabular-nums; }
+.hidden{ display:none !important; }
+*{ scrollbar-width:thin; scrollbar-color:var(--baseline) transparent; }
+*::-webkit-scrollbar{ width:8px; height:8px; }
+*::-webkit-scrollbar-thumb{ background:var(--baseline); border-radius:4px; }
+*::-webkit-scrollbar-track{ background:transparent; }
+
+/* ============================================================
+   3. TOP BAR
+   ============================================================ */
+#app{ height:100vh; display:flex; flex-direction:column; }
+.topbar{
+  flex:none; display:flex; align-items:center; gap:16px;
+  padding:0 16px; height:52px;
+  border-bottom:1px solid var(--border); background:var(--card);
+}
+.brand{ font-weight:650; font-size:15px; letter-spacing:-0.01em; white-space:nowrap; }
+.brand .dot{ color:var(--muted); font-weight:400; }
+.tabs{ display:flex; gap:2px; background:var(--page); border:1px solid var(--border); border-radius:8px; padding:2px; }
+.tabs button{
+  padding:4px 14px; border-radius:6px; font-size:13px; color:var(--secondary);
+}
+.tabs button:hover{ color:var(--ink); }
+.tabs button.on{ background:var(--card); color:var(--ink); font-weight:550; box-shadow:var(--shadow); }
+.topbar .spacer{ flex:1; }
+.statchip{
+  font-size:12px; color:var(--secondary); border:1px solid var(--border);
+  border-radius:999px; padding:3px 10px; white-space:nowrap;
+}
+.iconbtn{
+  width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border); border-radius:8px; color:var(--secondary); font-size:14px;
+}
+.iconbtn:hover{ color:var(--ink); background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.iconbtn:active{ transform:translateY(1px); }
+.iconbtn.spin{ animation:rot 0.9s linear infinite; }
+@keyframes rot{ to{ transform:rotate(360deg); } }
+
+/* ============================================================
+   4. LAYOUT
+   ============================================================ */
+.content{ flex:1; min-height:0; }
+#callsView{
+  height:100%; display:grid; gap:12px; padding:12px;
+  grid-template-columns:300px minmax(0,1fr) 340px;
+}
+.col{ min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+#listRail{ overflow-y:auto; }
+@media (max-width:1100px){
+  #callsView{ grid-template-columns:280px minmax(0,1fr); overflow-y:auto; }
+  #mainCol,#rightRail{ overflow:visible; min-height:auto; }
+  #mainCol{ grid-column:2; grid-row:1; }
+  #rightRail{ grid-column:2; grid-row:2; }
+  #listRail{ grid-row:1 / span 2; }
+}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:12px;
+  box-shadow:var(--shadow); padding:16px; flex:none;
+}
+.card h2{
+  margin:0 0 12px; font-size:12px; font-weight:600; letter-spacing:0.06em;
+  text-transform:uppercase; color:var(--muted);
+}
+.cardhead{ display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+.cardhead h2{ margin:0; flex:1; }
+
+/* ============================================================
+   5. CALL LIST
+   ============================================================ */
+.callcard{
+  width:100%; text-align:left; background:var(--card); border:1px solid var(--border);
+  border-radius:12px; padding:10px 12px; margin-bottom:8px; box-shadow:var(--shadow);
+  display:block; transition:border-color .12s ease;
+}
+.callcard:hover{ border-color:color-mix(in srgb, var(--ink) 25%, transparent); }
+.callcard.sel{
+  border-color:var(--series-1);
+  box-shadow:0 0 0 1px var(--series-1), var(--shadow);
+}
+.callcard .row1{ display:flex; align-items:baseline; gap:8px; }
+.callcard .time{ font-weight:600; font-size:13px; }
+.callcard .dur{ margin-left:auto; color:var(--muted); font-size:12px; }
+.callcard .row2{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; align-items:center; }
+.badge{
+  display:inline-flex; align-items:center; gap:4px; font-size:11px;
+  border:1px solid var(--border); border-radius:999px; padding:1px 7px; color:var(--secondary);
+}
+.badge.ok{ color:var(--success); border-color:color-mix(in srgb, var(--success) 35%, transparent); }
+.badge.star{ color:var(--ink); font-weight:600; }
+.emptystate{ color:var(--muted); font-size:13px; text-align:center; padding:32px 12px; }
+
+/* ============================================================
+   6. CHIPS (outcome / status)
+   ============================================================ */
+.chip{
+  display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:500;
+  border:1px solid var(--border); border-radius:999px; padding:2px 9px; color:var(--secondary);
+  white-space:nowrap;
+}
+.chip .ico{ font-size:10px; line-height:1; }
+.chip.st-good{ border-color:color-mix(in srgb, var(--good) 45%, transparent); background:color-mix(in srgb, var(--good) 10%, transparent); }
+.chip.st-good .ico{ color:var(--good); }
+.chip.st-warning{ border-color:color-mix(in srgb, var(--warning) 55%, transparent); background:color-mix(in srgb, var(--warning) 12%, transparent); }
+.chip.st-warning .ico{ color:var(--warning); }
+.chip.st-serious{ border-color:color-mix(in srgb, var(--serious) 50%, transparent); background:color-mix(in srgb, var(--serious) 11%, transparent); }
+.chip.st-serious .ico{ color:var(--serious); }
+.chip.st-critical{ border-color:color-mix(in srgb, var(--critical) 45%, transparent); background:color-mix(in srgb, var(--critical) 10%, transparent); }
+.chip.st-critical .ico{ color:var(--critical); }
+
+/* ============================================================
+   7. PLAYER + WAVEFORM
+   ============================================================ */
+.playerhead{ display:flex; align-items:baseline; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+.playerhead .title{ font-weight:650; font-size:15px; }
+.playerhead .sub{ color:var(--muted); font-size:12px; }
+.controls{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.playbtn{
+  width:40px; height:40px; border-radius:999px; background:var(--ink); color:var(--page);
+  display:inline-flex; align-items:center; justify-content:center; font-size:15px; flex:none;
+}
+.playbtn:hover{ opacity:0.85; }
+.playbtn:active{ transform:scale(0.96); }
+.ctlbtn{
+  height:28px; padding:0 10px; border:1px solid var(--border); border-radius:8px;
+  color:var(--secondary); font-size:12px; display:inline-flex; align-items:center; gap:4px;
+}
+.ctlbtn:hover{ color:var(--ink); background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.ctlbtn:active{ transform:translateY(1px); }
+.timedisp{ font-size:13px; color:var(--secondary); margin-left:auto; }
+.wavewrap{
+  position:relative; height:132px; border:1px solid var(--border); border-radius:8px;
+  overflow:hidden; cursor:crosshair; background:color-mix(in srgb, var(--page) 55%, var(--card));
+  touch-action:none;
+}
+.wavewrap.mono{ height:76px; }
+.wavewrap canvas{ position:absolute; inset:0; display:block; }
+.lanelabel{
+  position:absolute; left:6px; font-size:10px; font-weight:600; letter-spacing:0.05em;
+  text-transform:uppercase; color:var(--muted); pointer-events:none; z-index:2;
+}
+.playhead{
+  position:absolute; top:0; bottom:0; width:2px; background:var(--ink);
+  pointer-events:none; z-index:3; will-change:transform;
+}
+.seekfallback{ width:100%; accent-color:var(--series-1); margin-top:4px; }
+.wavemsg{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  color:var(--muted); font-size:12px; z-index:1;
+}
+
+/* ============================================================
+   8. TRANSCRIPT
+   ============================================================ */
+#transcriptCard{ display:flex; flex-direction:column; flex:1; min-height:260px; }
+.tscroll{ flex:1; min-height:0; overflow-y:auto; padding:4px 2px; scroll-behavior:smooth; }
+@media (prefers-reduced-motion: reduce){ .tscroll{ scroll-behavior:auto; } }
+@media (max-width:1100px){ #transcriptCard{ min-height:0; } .tscroll{ max-height:420px; } }
+.turn{ display:flex; margin-bottom:8px; }
+.turn.agent{ justify-content:flex-end; }
+.bubble{
+  max-width:78%; border:1px solid var(--border); border-radius:12px; padding:7px 10px;
+  cursor:pointer; transition:box-shadow .12s ease;
+}
+.turn.customer .bubble{ background:color-mix(in srgb, var(--series-1) 7%, var(--card)); border-bottom-left-radius:4px; }
+.turn.agent .bubble{ background:color-mix(in srgb, var(--series-2) 7%, var(--card)); border-bottom-right-radius:4px; }
+.bubble:hover{ box-shadow:0 0 0 1px color-mix(in srgb, var(--ink) 20%, transparent); }
+.turn.active .bubble{ box-shadow:0 0 0 2px color-mix(in srgb, var(--series-1) 55%, transparent); }
+.turn.agent.active .bubble{ box-shadow:0 0 0 2px color-mix(in srgb, var(--series-2) 60%, transparent); }
+.bubble .meta{ display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:2px; }
+.bubble .spk{ font-weight:600; letter-spacing:0.03em; text-transform:uppercase; font-size:10px; }
+.turn.customer .spk{ color:var(--series-1); }
+.turn.agent .spk{ color:var(--series-2); }
+.bubble .txt{ font-size:13.5px; white-space:pre-wrap; word-break:break-word; }
+.hlflag{ margin-left:auto; cursor:help; font-size:12px; color:var(--serious); }
+.tsbtn{
+  height:26px; padding:0 9px; border:1px solid var(--border); border-radius:7px;
+  font-size:11.5px; color:var(--secondary); display:inline-flex; align-items:center; gap:4px;
+}
+.tsbtn:hover{ color:var(--ink); background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.tsbtn.on{ border-color:var(--series-1); color:var(--series-1); }
+.analyzebig{
+  background:var(--ink); color:var(--page); border-radius:8px; padding:9px 18px;
+  font-weight:600; font-size:13px; display:inline-flex; align-items:center; gap:8px;
+}
+.analyzebig:hover{ opacity:0.85; }
+.analyzebig:disabled{ opacity:0.55; cursor:default; }
+.spinner{
+  width:13px; height:13px; border-radius:50%; border:2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color:currentColor; animation:rot .8s linear infinite; display:inline-block;
+}
+@media (prefers-reduced-motion: reduce){ .spinner{ animation-duration:1.6s; } }
+.hint{ color:var(--muted); font-size:12px; margin-top:8px; }
+.explain{ color:var(--muted); font-size:11px; margin-top:6px; }
+
+/* ============================================================
+   9. AUTO-ANALYSIS RAIL
+   ============================================================ */
+.chiprow{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.minitiles{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.minitile{ border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+.minitile .v{ font-size:16px; font-weight:650; }
+.minitile .k{ font-size:11px; color:var(--muted); margin-top:1px; }
+.meterrow{ display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+.meterrow .lbl{ flex:1; font-size:12.5px; color:var(--secondary); }
+.meterrow .val{ font-size:12px; color:var(--secondary); width:14px; text-align:right; }
+.meter{ display:flex; gap:2px; }
+.meter span{ width:14px; height:7px; border-radius:2px; background:var(--grid); }
+.meter span.f{ background:var(--series-2); }
+.summary{ font-size:13px; color:var(--secondary); margin:10px 0 0; }
+.sechead{ font-size:11px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); margin:14px 0 8px; }
+
+/* ============================================================
+   10. GRADE PANEL
+   ============================================================ */
+.seg{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.seg button{
+  flex:1; text-align:center; color:var(--secondary); background:transparent;
+  border-right:1px solid var(--border);
+}
+.seg button:last-child{ border-right:none; }
+.seg button:hover{ background:color-mix(in srgb, var(--ink) 6%, transparent); color:var(--ink); }
+.seg button:focus-visible{ outline-offset:-2px; border-radius:0; }
+.seg button.on{ background:var(--series-1); color:var(--on-series); font-weight:650; }
+.seg.big button{ padding:10px 0; font-size:15px; }
+.seg.small{ width:130px; flex:none; }
+.seg.small button{ padding:3px 0; font-size:12px; }
+.dimrow{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.dimrow .lbl{ flex:1; font-size:12.5px; color:var(--secondary); }
+.dimrow .auto{ font-size:11px; color:var(--muted); width:46px; text-align:right; }
+.tagwrap{ display:flex; flex-wrap:wrap; gap:6px; }
+.tagbtn{
+  font-size:12px; border:1px solid var(--border); border-radius:999px; padding:3px 11px;
+  color:var(--secondary); transition:all .1s ease;
+}
+.tagbtn:hover{ border-color:color-mix(in srgb, var(--ink) 30%, transparent); color:var(--ink); }
+.tagbtn.on{ background:var(--ink); color:var(--page); border-color:var(--ink); }
+.gradefield{ margin-top:12px; }
+.gradefield label{ display:block; font-size:11px; color:var(--muted); margin-bottom:4px; }
+.gradefield textarea, .gradefield input[type=text]{
+  width:100%; border:1px solid var(--border); border-radius:8px; background:var(--page);
+  padding:7px 9px; font-size:13px; resize:vertical;
+}
+.gradefield textarea{ min-height:56px; }
+.saverow{ display:flex; align-items:center; gap:10px; margin-top:14px; }
+.savebtn{
+  background:var(--series-1); color:var(--on-series); font-weight:600; font-size:13px;
+  border-radius:8px; padding:8px 20px; display:inline-flex; align-items:center; gap:8px;
+}
+.savebtn:hover{ opacity:0.88; }
+.savebtn:disabled{ opacity:0.5; cursor:default; }
+.savedmsg{ font-size:12px; color:var(--success); display:inline-flex; align-items:center; gap:4px; }
+.kbd{ font-size:11px; color:var(--muted); }
+.ghist{ margin-top:14px; }
+.ghist summary{ font-size:12px; color:var(--muted); cursor:pointer; user-select:none; }
+.ghist summary:hover{ color:var(--ink); }
+.gh-item{
+  display:flex; align-items:baseline; gap:8px; padding:6px 0; font-size:12.5px;
+  border-bottom:1px solid var(--grid);
+}
+.gh-item:last-child{ border-bottom:none; }
+.gh-item .who{ font-weight:600; }
+.gh-item .ago{ margin-left:auto; color:var(--muted); font-size:11px; }
+.gh-notes{ color:var(--muted); font-size:11.5px; margin:-2px 0 4px; }
+
+/* ============================================================
+   11. OVERVIEW
+   ============================================================ */
+#overviewView{ height:100%; overflow-y:auto; padding:16px; }
+.ovinner{ max-width:1080px; margin:0 auto; }
+.tilerow{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px; }
+.tile{ background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:14px 16px; }
+.tile .v{ font-size:24px; font-weight:650; letter-spacing:-0.01em; }
+.tile .k{ font-size:12px; color:var(--muted); margin-top:2px; }
+.chartsrow{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+@media (max-width:900px){ .chartsrow{ grid-template-columns:1fr; } }
+.chart-wrap{ position:relative; }
+.legend{ display:flex; gap:16px; margin-bottom:10px; }
+.legend .li{ display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--secondary); }
+.legend .sw{ width:10px; height:10px; border-radius:3px; }
+.charttip{
+  position:absolute; pointer-events:none; z-index:10; background:var(--card);
+  border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow);
+  padding:5px 9px; font-size:12px; color:var(--ink); white-space:nowrap; display:none;
+}
+svg .axistext{ font-size:11px; fill:var(--muted); font-family:inherit; font-variant-numeric:tabular-nums; }
+svg .vallabel{ font-size:11px; fill:var(--secondary); font-family:inherit; font-variant-numeric:tabular-nums; }
+svg .gridline{ stroke:var(--grid); stroke-width:1; }
+svg .baseline{ stroke:var(--baseline); stroke-width:1; }
+svg [data-tip]{ cursor:default; }
+svg [data-tip]:hover{ opacity:0.85; }
+.tagfreq{ display:flex; flex-wrap:wrap; gap:8px; }
+.tagfreq .chip .n{ color:var(--ink); font-weight:600; }
+
+/* ============================================================
+   12. SKELETONS, TOASTS, MISC
+   ============================================================ */
+.skel{
+  border-radius:6px;
+  background:linear-gradient(90deg, var(--grid) 25%, color-mix(in srgb, var(--grid) 45%, var(--card)) 50%, var(--grid) 75%);
+  background-size:200% 100%;
+  animation:shimmer 1.3s ease-in-out infinite;
+}
+@keyframes shimmer{ from{ background-position:200% 0; } to{ background-position:-200% 0; } }
+@media (prefers-reduced-motion: reduce){ .skel{ animation:none; } }
+.skelcard{ padding:12px; border:1px solid var(--border); border-radius:12px; margin-bottom:8px; background:var(--card); }
+#toasts{
+  position:fixed; top:14px; right:14px; z-index:100; display:flex; flex-direction:column; gap:8px;
+  max-width:340px;
+}
+.toast{
+  background:var(--card); border:1px solid var(--border); border-left:3px solid var(--critical);
+  border-radius:10px; box-shadow:var(--shadow); padding:10px 14px; font-size:13px;
+  display:flex; gap:8px; align-items:flex-start;
+}
+.toast.good{ border-left-color:var(--good); }
+.toast .ico{ flex:none; }
+.toast.critical .ico{ color:var(--critical); }
+.toast.good .ico{ color:var(--good); }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ==================== TOP BAR ==================== -->
+  <header class="topbar">
+    <div class="brand">Vasooli <span class="dot">·</span> Call Review</div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button id="tabCalls" class="on" role="tab" aria-selected="true">Calls</button>
+      <button id="tabOverview" role="tab" aria-selected="false">Overview</button>
+    </nav>
+    <div class="spacer"></div>
+    <span id="topStats" class="statchip num">— calls</span>
+    <button id="themeBtn" class="iconbtn" title="Toggle theme" aria-label="Toggle light/dark theme">◐</button>
+    <button id="refreshBtn" class="iconbtn" title="Refresh" aria-label="Refresh data">⟳</button>
+  </header>
+
+  <div class="content">
+    <!-- ==================== CALLS TAB ==================== -->
+    <div id="callsView">
+      <div id="listRail" class="col" aria-label="Call list"></div>
+
+      <div id="mainCol" class="col">
+        <section class="card" id="playerCard"></section>
+        <section class="card" id="transcriptCard"></section>
+      </div>
+
+      <div id="rightRail" class="col">
+        <section class="card" id="autoCard"></section>
+        <section class="card" id="gradeCard"></section>
+      </div>
+    </div>
+
+    <!-- ==================== OVERVIEW TAB ==================== -->
+    <div id="overviewView" class="hidden"><div class="ovinner" id="ovInner"></div></div>
+  </div>
+</div>
+
+<audio id="audio" preload="metadata"></audio>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   SECTION A — state, constants, helpers
+   ============================================================ */
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+const DIMS = ['naturalness', 'task_completion', 'compliance', 'language_quality'];
+const DIM_LABELS = {
+  naturalness: 'Naturalness',
+  task_completion: 'Task completion',
+  compliance: 'Compliance',
+  language_quality: 'Language quality'
+};
+const TAGS = ['Robotic','Natural flow','Interrupts customer','Wrong info','Great recovery',
+  'Mispronunciation','Compliance risk','Off-script','Too pushy','Handled objection well'];
+const OUTCOME_LABELS = {
+  resolved:'Resolved', promise_to_pay:'Promise to pay', callback:'Callback',
+  refused:'Refused', incomplete:'Incomplete', unknown:'Unknown'
+};
+
+const app = {
+  tab: 'calls',
+  calls: [],
+  loadingCalls: true,
+  loadingDetail: false,
+  file: null,
+  detail: null,
+  stats: null,
+  statsDirty: true,
+  grade: { overall: null, scores: {}, tags: new Set(), notes: '' },
+  savedFlash: false,
+  saving: false,
+  analyzing: false,
+  wave: { buffer: null, error: false, loadingFor: null },
+  autoScroll: true,
+  activeTurn: -1,
+  rate: 1,
+  raf: 0,
+  progScrollUntil: 0,
+  dragging: false
+};
+
+const audio = $('#audio');
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function parseUTC(iso) {
+  if (!iso) return null;
+  let s = String(iso);
+  if (!/([zZ]|[+-]\d{2}:?\d{2})$/.test(s)) s += 'Z';
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+function fmtDur(sec) {
+  if (sec == null || !isFinite(sec)) return '–:––';
+  const s = Math.max(0, Math.round(sec));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+function fmtWhen(iso) {
+  const d = parseUTC(iso);
+  if (!d) return '—';
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ', ' +
+    d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+function fmtAgo(iso) {
+  const d = parseUTC(iso);
+  if (!d) return '';
+  const s = Math.max(0, (Date.now() - d.getTime()) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+function fmt1(v) { return (v == null || !isFinite(v)) ? '—' : (Math.round(v * 10) / 10).toFixed(1); }
+function pct(v) { return (v == null || !isFinite(v)) ? '—' : Math.round(v * 100) + '%'; }
+function reducedMotion() { return matchMedia('(prefers-reduced-motion: reduce)').matches; }
+
+function toast(msg, kind) {
+  const k = kind === 'good' ? 'good' : 'critical';
+  const el = document.createElement('div');
+  el.className = 'toast ' + k;
+  el.innerHTML = '<span class="ico">' + (k === 'good' ? '✓' : '⚠') + '</span><span>' + esc(msg) + '</span>';
+  $('#toasts').appendChild(el);
+  setTimeout(() => { el.remove(); }, 5000);
+}
+
+/* ============================================================
+   SECTION B — theming
+   ============================================================ */
+(function initTheme() {
+  const saved = localStorage.getItem('vasooli.theme');
+  if (saved === 'light' || saved === 'dark') document.documentElement.dataset.theme = saved;
+})();
+function effectiveTheme() {
+  const t = document.documentElement.dataset.theme;
+  if (t === 'light' || t === 'dark') return t;
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+$('#themeBtn').addEventListener('click', () => {
+  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('vasooli.theme', next);
+  drawWave();
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => drawWave());
+
+/* ============================================================
+   SECTION C — API layer
+   ============================================================ */
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let msg = 'Request failed (' + r.status + ')';
+    try {
+      const j = await r.json();
+      if (j && typeof j.detail === 'string') msg = j.detail;
+    } catch (e) { /* not json */ }
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+async function loadCalls(keepSelection) {
+  app.loadingCalls = true;
+  renderList();
+  try {
+    app.calls = await api('/api/review/calls');
+  } catch (e) {
+    toast('Could not load calls: ' + e.message);
+    app.calls = [];
+  }
+  app.loadingCalls = false;
+  renderTopStats();
+  if (!keepSelection || !app.calls.some(c => c.file === app.file)) {
+    const want = new URLSearchParams(location.search).get('file');
+    const first = (want && app.calls.find(c => c.file === want)) ? want :
+      (app.calls.length ? app.calls[0].file : null);
+    if (first) { selectCall(first); } else { app.file = null; app.detail = null; renderDetail(); }
+  }
+  renderList();
+}
+
+async function selectCall(file) {
+  if (app.file === file && app.detail) { renderList(); return; }
+  app.file = file;
+  app.detail = null;
+  app.loadingDetail = true;
+  app.activeTurn = -1;
+  resetGradeForm();
+  try { history.replaceState(null, '', '?file=' + encodeURIComponent(file)); } catch (e) {}
+  renderList();
+  renderDetail();
+  try {
+    app.detail = await api('/api/review/calls/' + encodeURIComponent(file));
+  } catch (e) {
+    toast('Could not load call: ' + e.message);
+  }
+  app.loadingDetail = false;
+  if (app.detail) {
+    audio.pause();
+    audio.src = app.detail.audio_url;
+    audio.playbackRate = app.rate;
+    loadWaveform(app.detail.audio_url, file);
+  }
+  renderDetail();
+}
+
+async function refreshDetail() {
+  if (!app.file) return;
+  try {
+    app.detail = await api('/api/review/calls/' + encodeURIComponent(app.file));
+  } catch (e) { toast('Refresh failed: ' + e.message); }
+  renderDetail();
+}
+
+async function loadStats() {
+  try {
+    app.stats = await api('/api/review/stats');
+    app.statsDirty = false;
+  } catch (e) {
+    toast('Could not load stats: ' + e.message);
+  }
+  renderOverview();
+}
+
+async function runAnalyze(force, swap) {
+  if (!app.file || app.analyzing) return;
+  app.analyzing = true;
+  renderDetail();
+  try {
+    const q = '?force=' + (force ? 'true' : 'false') + '&swap=' + (swap ? 'true' : 'false');
+    await api('/api/review/calls/' + encodeURIComponent(app.file) + '/analyze' + q, { method: 'POST' });
+    app.analyzing = false;
+    app.statsDirty = true;
+    toast('Analysis complete', 'good');
+    await refreshDetail();
+    await loadCalls(true);
+  } catch (e) {
+    app.analyzing = false;
+    toast('Analysis failed: ' + e.message);
+    renderDetail();
+  }
+}
+
+async function saveGrade() {
+  if (!app.file || app.saving) return;
+  if (!app.grade.overall) { toast('Pick an Overall score (1–5) first'); return; }
+  app.saving = true;
+  renderGrade();
+  const grader = ($('#graderInput') ? $('#graderInput').value.trim() : '') ||
+    localStorage.getItem('vasooli.grader') || '';
+  localStorage.setItem('vasooli.grader', grader);
+  const scores = {};
+  for (const d of DIMS) if (app.grade.scores[d]) scores[d] = app.grade.scores[d];
+  const body = {
+    overall: app.grade.overall,
+    scores: scores,
+    tags: Array.from(app.grade.tags),
+    notes: $('#notesInput') ? $('#notesInput').value : '',
+    grader: grader
+  };
+  try {
+    await api('/api/review/calls/' + encodeURIComponent(app.file) + '/grade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    app.saving = false;
+    app.savedFlash = true;
+    app.statsDirty = true;
+    toast('Grade saved', 'good');
+    resetGradeForm(true);
+    await refreshDetail();
+    await loadCalls(true);
+    setTimeout(() => { app.savedFlash = false; renderGrade(); }, 2500);
+  } catch (e) {
+    app.saving = false;
+    toast('Save failed: ' + e.message);
+    renderGrade();
+  }
+}
+
+function resetGradeForm(keepFlash) {
+  app.grade = { overall: null, scores: {}, tags: new Set(), notes: '' };
+  // renderGrade prefers the live DOM value for notes (so re-renders never eat
+  // in-progress typing) — clear the node too, or the old notes ride along on
+  // the next save.
+  const n = $('#notesInput');
+  if (n) n.value = '';
+  if (!keepFlash) app.savedFlash = false;
+}
+
+/* ============================================================
+   SECTION D — top bar, tabs, list rendering
+   ============================================================ */
+function renderTopStats() {
+  const n = app.calls.length;
+  const graded = app.calls.filter(c => c.grade_count > 0).length;
+  const p = n ? Math.round(graded / n * 100) : 0;
+  $('#topStats').textContent = n + ' call' + (n === 1 ? '' : 's') + ' · ' + p + '% graded';
+}
+
+function setTab(tab) {
+  app.tab = tab;
+  $('#tabCalls').classList.toggle('on', tab === 'calls');
+  $('#tabOverview').classList.toggle('on', tab === 'overview');
+  $('#tabCalls').setAttribute('aria-selected', tab === 'calls');
+  $('#tabOverview').setAttribute('aria-selected', tab === 'overview');
+  $('#callsView').classList.toggle('hidden', tab !== 'calls');
+  $('#overviewView').classList.toggle('hidden', tab !== 'overview');
+  if (tab === 'overview') {
+    if (app.statsDirty || !app.stats) { renderOverviewSkeleton(); loadStats(); }
+    else renderOverview();
+  } else {
+    drawWave();
+  }
+}
+$('#tabCalls').addEventListener('click', () => setTab('calls'));
+$('#tabOverview').addEventListener('click', () => setTab('overview'));
+
+$('#refreshBtn').addEventListener('click', async () => {
+  const b = $('#refreshBtn');
+  b.classList.add('spin');
+  app.statsDirty = true;
+  await loadCalls(true);
+  await refreshDetail();
+  if (app.tab === 'overview') await loadStats();
+  b.classList.remove('spin');
+});
+
+function skelListHTML() {
+  let h = '';
+  for (let i = 0; i < 5; i++) {
+    h += '<div class="skelcard"><div class="skel" style="height:14px;width:60%"></div>' +
+      '<div class="skel" style="height:11px;width:85%;margin-top:8px"></div></div>';
+  }
+  return h;
+}
+
+function renderList() {
+  const rail = $('#listRail');
+  if (app.loadingCalls) { rail.innerHTML = skelListHTML(); return; }
+  if (!app.calls.length) {
+    rail.innerHTML = '<div class="card"><div class="emptystate">No recordings yet — make a call</div></div>';
+    return;
+  }
+  let h = '';
+  for (const c of app.calls) {
+    const sel = c.file === app.file;
+    const badges = [];
+    badges.push(c.analyzed
+      ? '<span class="badge ok"><span aria-hidden="true">✓</span>Analyzed</span>'
+      : '<span class="badge">Not analyzed</span>');
+    if (c.grade_count > 0) badges.push('<span class="badge num">Graded ' + c.grade_count + '</span>');
+    if (c.outcome) badges.push('<span class="chip"><span class="ico" aria-hidden="true">●</span>' + esc(OUTCOME_LABELS[c.outcome] || c.outcome) + '</span>');
+    if (c.grade && c.grade.overall != null) badges.push('<span class="badge star num">★' + esc(c.grade.overall) + '</span>');
+    h += '<button class="callcard' + (sel ? ' sel' : '') + '" data-file="' + esc(c.file) + '" aria-pressed="' + sel + '">' +
+      '<div class="row1"><span class="time num">' + esc(fmtWhen(c.recorded_at)) + '</span>' +
+      '<span class="dur num">' + fmtDur(c.duration_sec) + '</span></div>' +
+      '<div class="row2">' + badges.join('') + '</div></button>';
+  }
+  rail.innerHTML = h;
+}
+$('#listRail').addEventListener('click', e => {
+  const card = e.target.closest('.callcard');
+  if (card) selectCall(card.dataset.file);
+});
+
+function moveSel(dir) {
+  if (!app.calls.length) return;
+  let i = app.calls.findIndex(c => c.file === app.file);
+  i = Math.min(app.calls.length - 1, Math.max(0, (i < 0 ? 0 : i + dir)));
+  selectCall(app.calls[i].file);
+  const el = $('.callcard[data-file="' + CSS.escape(app.calls[i].file) + '"]');
+  if (el) el.scrollIntoView({ block: 'nearest' });
+}
+
+/* ============================================================
+   SECTION E — detail render (player / transcript / rails)
+   ============================================================ */
+function currentCall() { return app.calls.find(c => c.file === app.file) || null; }
+
+function renderDetail() {
+  renderPlayer();
+  renderTranscript();
+  renderAutoCard();
+  renderGrade();
+}
+
+function skelBlock(hgt, w) {
+  return '<div class="skel" style="height:' + hgt + 'px;width:' + (w || '100%') + ';margin-bottom:10px"></div>';
+}
+
+/* ---------- player ---------- */
+function renderPlayer() {
+  const card = $('#playerCard');
+  if (!app.file) { card.innerHTML = '<div class="emptystate">Select a call to review</div>'; return; }
+  card.classList.remove('hidden');
+  if (app.loadingDetail && !app.detail) {
+    card.innerHTML = skelBlock(18, '45%') + skelBlock(40, '60%') + skelBlock(120);
+    return;
+  }
+  const d = app.detail;
+  const an = d && d.analysis;
+  const call = currentCall() || {};
+  let roles = (an && Array.isArray(an.channel_roles) && an.channel_roles.length)
+    ? an.channel_roles : ['customer', 'agent'];
+  // The decoded buffer is the ground truth for lane count: a mono file must
+  // never show two speaker labels over a single lane (drawWave draws lanes
+  // from the buffer, not from the analysis roles).
+  const bufCh = (app.wave.buffer && app.wave.loadingFor === app.file)
+    ? app.wave.buffer.numberOfChannels : null;
+  const mono = bufCh != null ? bufCh === 1 : roles.length === 1;
+  if (mono && roles.length > 1) roles = ['audio'];  // both speakers share the channel
+  const dur = (an && an.duration_sec) || call.duration_sec;
+  card.innerHTML =
+    '<div class="playerhead"><span class="title num">' + esc(fmtWhen(call.recorded_at)) + '</span>' +
+    '<span class="sub num">' + fmtDur(dur) + (an && an.language ? ' · ' + esc(an.language) : '') + '</span>' +
+    '<span class="sub" style="margin-left:auto" title="' + esc(app.file) + '">' + esc(shortFile(app.file)) + '</span></div>' +
+    '<div class="controls">' +
+      '<button id="playBtn" class="playbtn" aria-label="Play or pause">' + (audio.paused ? '►' : '❚❚') + '</button>' +
+      '<button id="backBtn" class="ctlbtn num" aria-label="Back 5 seconds">−5 s</button>' +
+      '<button id="fwdBtn" class="ctlbtn num" aria-label="Forward 5 seconds">+5 s</button>' +
+      '<button id="rateBtn" class="ctlbtn num" aria-label="Playback speed">' + rateLabel() + '</button>' +
+      '<span class="timedisp num"><span id="curTime">' + fmtDur(audio.currentTime) + '</span> / ' + fmtDur(dur) + '</span>' +
+    '</div>' +
+    '<div id="waveWrap" class="wavewrap' + (mono ? ' mono' : '') + '" role="slider" aria-label="Seek" tabindex="0">' +
+      laneLabelsHTML(roles, mono) +
+      '<canvas id="waveCanvas"></canvas>' +
+      (app.wave.buffer ? '' : '<div class="wavemsg">' + (app.wave.error ? '' : 'Loading waveform…') + '</div>') +
+      '<div id="playhead" class="playhead"></div>' +
+    '</div>' +
+    (app.wave.error
+      ? '<input id="seekFallback" class="seekfallback" type="range" min="0" max="1000" value="0" aria-label="Seek">'
+      : '');
+  wirePlayer();
+  drawWave();
+  updatePlayhead();
+}
+function shortFile(f) {
+  return (f && f.length > 34) ? f.slice(0, 16) + '…' + f.slice(-14) : (f || '');
+}
+function rateLabel() {
+  return (app.rate === 1 ? '1' : app.rate === 1.5 ? '1.5' : '2') + '×';
+}
+function laneLabelsHTML(roles, mono) {
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  if (mono) return '<span class="lanelabel" style="top:4px">' + esc(cap(roles[0] || 'Customer')) + '</span>';
+  return '<span class="lanelabel" style="top:4px">' + esc(cap(roles[0] || 'Customer')) + '</span>' +
+    '<span class="lanelabel" style="top:calc(50% + 8px)">' + esc(cap(roles[1] || 'Agent')) + '</span>';
+}
+
+function wirePlayer() {
+  const play = $('#playBtn'); if (!play) return;
+  play.addEventListener('click', togglePlay);
+  $('#backBtn').addEventListener('click', () => skip(-5));
+  $('#fwdBtn').addEventListener('click', () => skip(5));
+  $('#rateBtn').addEventListener('click', () => {
+    app.rate = app.rate === 1 ? 1.5 : app.rate === 1.5 ? 2 : 1;
+    audio.playbackRate = app.rate;
+    $('#rateBtn').textContent = rateLabel();
+  });
+  const wrap = $('#waveWrap');
+  wrap.addEventListener('pointerdown', e => {
+    app.dragging = true;
+    wrap.setPointerCapture(e.pointerId);
+    seekToClientX(e.clientX);
+  });
+  wrap.addEventListener('pointermove', e => { if (app.dragging) seekToClientX(e.clientX); });
+  wrap.addEventListener('pointerup', () => { app.dragging = false; });
+  wrap.addEventListener('pointercancel', () => { app.dragging = false; });
+  wrap.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); skip(-5); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); skip(5); }
+  });
+  const fb = $('#seekFallback');
+  if (fb) fb.addEventListener('input', () => {
+    const d = getDuration();
+    if (d) audio.currentTime = fb.value / 1000 * d;
+  });
+}
+function togglePlay() {
+  if (!app.detail) return;
+  if (audio.paused) { audio.play().catch(() => toast('Playback failed')); }
+  else audio.pause();
+}
+function skip(dt) {
+  const d = getDuration();
+  audio.currentTime = Math.max(0, Math.min(d || Infinity, audio.currentTime + dt));
+  updatePlayhead();
+}
+function getDuration() {
+  if (isFinite(audio.duration) && audio.duration > 0) return audio.duration;
+  if (app.wave.buffer) return app.wave.buffer.duration;
+  const an = app.detail && app.detail.analysis;
+  if (an && an.duration_sec) return an.duration_sec;
+  const c = currentCall();
+  return (c && c.duration_sec) || 0;
+}
+function seekToClientX(x) {
+  const wrap = $('#waveWrap'); if (!wrap) return;
+  const r = wrap.getBoundingClientRect();
+  const frac = Math.max(0, Math.min(1, (x - r.left) / r.width));
+  const d = getDuration();
+  if (d) { audio.currentTime = frac * d; updatePlayhead(); }
+}
+
+/* ---------- waveform ---------- */
+async function loadWaveform(url, file) {
+  app.wave = { buffer: null, error: false, loadingFor: file };
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const ab = await res.arrayBuffer();
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) throw new Error('no AudioContext');
+    const ctx = new Ctor();
+    const buf = await ctx.decodeAudioData(ab);
+    ctx.close().catch(() => {});
+    if (app.wave.loadingFor !== file) return; // superseded by another selection
+    app.wave.buffer = buf;
+    renderPlayer();
+  } catch (e) {
+    if (app.wave.loadingFor !== file) return;
+    app.wave.error = true;
+    renderPlayer();
+  }
+}
+
+function drawWave() {
+  const wrap = $('#waveWrap'), canvas = $('#waveCanvas');
+  if (!wrap || !canvas) return;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if (!w || !h) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const g = canvas.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const buf = app.wave.buffer;
+  const css = getComputedStyle(document.documentElement);
+  const c1 = css.getPropertyValue('--series-1').trim() || '#2a78d6';
+  const c2 = css.getPropertyValue('--series-2').trim() || '#eb6834';
+  const gridC = css.getPropertyValue('--grid').trim() || '#e1e0d9';
+  if (!buf) return;
+  const lanes = Math.min(buf.numberOfChannels, 2);
+  const gap = lanes > 1 ? 10 : 0;
+  const laneH = (h - gap * (lanes - 1)) / lanes;
+  for (let c = 0; c < lanes; c++) {
+    const data = buf.getChannelData(c);
+    const top = c * (laneH + gap);
+    const mid = top + laneH / 2;
+    const amp = laneH / 2 - 3;
+    g.strokeStyle = gridC;
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(0, mid + 0.5); g.lineTo(w, mid + 0.5);
+    g.stroke();
+    if (c === 1 && gap) { // lane separator
+      g.beginPath();
+      g.moveTo(0, top - gap / 2 + 0.5); g.lineTo(w, top - gap / 2 + 0.5);
+      g.stroke();
+    }
+    g.strokeStyle = c === 0 ? c1 : c2;
+    g.lineWidth = 1;
+    g.beginPath();
+    const spp = data.length / w;
+    for (let x = 0; x < w; x++) {
+      const s0 = Math.floor(x * spp);
+      const s1 = Math.min(data.length, Math.max(s0 + 1, Math.floor((x + 1) * spp)));
+      let mn = Infinity, mx = -Infinity;
+      const step = Math.max(1, Math.floor((s1 - s0) / 64));
+      for (let i = s0; i < s1; i += step) {
+        const v = data[i];
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+      if (mn === Infinity) { mn = 0; mx = 0; }
+      let y0 = mid - mx * amp, y1 = mid - mn * amp;
+      if (y1 - y0 < 1) { y0 = mid - 0.5; y1 = mid + 0.5; }
+      g.moveTo(x + 0.5, y0);
+      g.lineTo(x + 0.5, y1);
+    }
+    g.stroke();
+  }
+}
+window.addEventListener('resize', () => { drawWave(); updatePlayhead(); });
+
+function updatePlayhead() {
+  const ph = $('#playhead');
+  const wrap = $('#waveWrap');
+  const d = getDuration();
+  const t = audio.currentTime || 0;
+  if (ph && wrap && d > 0) {
+    const x = Math.max(0, Math.min(1, t / d)) * wrap.clientWidth;
+    ph.style.transform = 'translateX(' + (x - 1) + 'px)';
+  }
+  const cur = $('#curTime');
+  if (cur) cur.textContent = fmtDur(t);
+  const fb = $('#seekFallback');
+  if (fb && d > 0 && !app.dragging) fb.value = Math.round(t / d * 1000);
+  updateActiveTurn(t);
+}
+function rafTick() {
+  updatePlayhead();
+  app.raf = requestAnimationFrame(rafTick);
+}
+audio.addEventListener('play', () => {
+  cancelAnimationFrame(app.raf);
+  app.raf = requestAnimationFrame(rafTick);
+  const b = $('#playBtn'); if (b) b.textContent = '❚❚';
+});
+audio.addEventListener('pause', () => {
+  cancelAnimationFrame(app.raf);
+  updatePlayhead();
+  const b = $('#playBtn'); if (b) b.textContent = '►';
+});
+audio.addEventListener('timeupdate', updatePlayhead);
+audio.addEventListener('seeked', updatePlayhead);
+audio.addEventListener('ended', () => { const b = $('#playBtn'); if (b) b.textContent = '►'; });
+audio.addEventListener('error', () => { if (app.detail) toast('Audio failed to load'); });
+
+/* ---------- transcript ---------- */
+function renderTranscript() {
+  const card = $('#transcriptCard');
+  if (!app.file) { card.innerHTML = ''; card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  if (app.loadingDetail && !app.detail) {
+    card.innerHTML = skelBlock(14, '30%') + skelBlock(48, '70%') + skelBlock(48, '65%') + skelBlock(48, '72%');
+    return;
+  }
+  const an = app.detail && app.detail.analysis;
+  if (!an) {
+    card.innerHTML =
+      '<div class="cardhead"><h2>Transcript</h2></div>' +
+      '<div class="emptystate" style="padding:40px 12px">' +
+        '<p style="margin:0 0 16px">This call has not been analyzed yet.</p>' +
+        '<button id="analyzeBtn" class="analyzebig"' + (app.analyzing ? ' disabled' : '') + '>' +
+          (app.analyzing ? '<span class="spinner" aria-hidden="true"></span>Analyzing…' : 'Analyze call') +
+        '</button>' +
+        (app.analyzing
+          ? '<div class="hint">Transcribing and evaluating — this can take 30–60 s.</div>'
+          : '<div class="hint">Runs speech-to-text, diarization metrics and an auto-evaluation.</div>') +
+      '</div>';
+    const b = $('#analyzeBtn');
+    if (b) b.addEventListener('click', () => runAnalyze(false, false));
+    return;
+  }
+  const hl = {};
+  const ae = an.auto_eval || {};
+  (ae.highlights || []).forEach(h => {
+    if (h && typeof h.turn === 'number') hl[h.turn] = h.note || '';
+  });
+  const turns = an.turns || [];
+  let body = '';
+  if (!turns.length) {
+    body = '<div class="emptystate">No speech turns detected.</div>';
+  } else {
+    turns.forEach((t, i) => {
+      const spk = t.speaker === 'agent' ? 'agent' : 'customer';
+      body +=
+        '<div class="turn ' + spk + (i === app.activeTurn ? ' active' : '') + '" data-i="' + i + '">' +
+          '<div class="bubble" role="button" tabindex="0" aria-label="Seek to ' + fmtDur(t.start) + '">' +
+            '<div class="meta"><span class="spk">' + esc(spk) + '</span>' +
+            '<span class="num">[' + fmtDur(t.start) + ']</span>' +
+            (i in hl ? '<span class="hlflag" title="' + esc(hl[i]) + '" aria-label="Highlight: ' + esc(hl[i]) + '">⚑</span>' : '') +
+            '</div>' +
+            '<div class="txt">' + esc(t.text) + '</div>' +
+          '</div>' +
+        '</div>';
+    });
+  }
+  card.innerHTML =
+    '<div class="cardhead"><h2>Transcript</h2>' +
+      '<button id="autoScrollBtn" class="tsbtn' + (app.autoScroll ? ' on' : '') + '" title="Follow playback">' +
+        '<span aria-hidden="true">⇣</span>Follow</button>' +
+      '<button id="reanalyzeBtn" class="tsbtn"' + (app.analyzing ? ' disabled' : '') + '>' +
+        (app.analyzing ? '<span class="spinner" aria-hidden="true"></span>Analyzing…' : 'Re-analyze') + '</button>' +
+      '<button id="swapBtn" class="tsbtn"' + (app.analyzing ? ' disabled' : '') + '>Swap speakers</button>' +
+    '</div>' +
+    '<div id="tscroll" class="tscroll">' + body + '</div>' +
+    '<div class="explain">Swap speakers: use if Customer/Agent labels look reversed.</div>';
+  $('#autoScrollBtn').addEventListener('click', () => {
+    app.autoScroll = !app.autoScroll;
+    $('#autoScrollBtn').classList.toggle('on', app.autoScroll);
+    if (app.autoScroll) scrollActiveIntoView();
+  });
+  $('#reanalyzeBtn').addEventListener('click', () => runAnalyze(true, false));
+  $('#swapBtn').addEventListener('click', () => runAnalyze(true, true));
+  const sc = $('#tscroll');
+  sc.addEventListener('click', e => {
+    const turn = e.target.closest('.turn');
+    if (!turn || e.target.closest('.hlflag')) return;
+    seekToTurn(+turn.dataset.i);
+  });
+  sc.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('bubble')) {
+      e.preventDefault();
+      const turn = e.target.closest('.turn');
+      if (turn) seekToTurn(+turn.dataset.i);
+    }
+  });
+  sc.addEventListener('scroll', () => {
+    if (performance.now() < app.progScrollUntil) return;
+    if (app.autoScroll) {
+      app.autoScroll = false;
+      const b = $('#autoScrollBtn');
+      if (b) b.classList.remove('on');
+    }
+  });
+}
+function seekToTurn(i) {
+  const an = app.detail && app.detail.analysis;
+  if (!an || !an.turns || !an.turns[i]) return;
+  audio.currentTime = an.turns[i].start;
+  updatePlayhead();
+}
+function updateActiveTurn(t) {
+  const an = app.detail && app.detail.analysis;
+  if (!an || !an.turns || !an.turns.length) return;
+  let idx = -1;
+  for (let i = 0; i < an.turns.length; i++) {
+    const tr = an.turns[i];
+    if (t >= tr.start && t <= tr.end) { idx = i; break; }
+    if (t >= tr.start) idx = i;
+  }
+  if (idx === app.activeTurn) return;
+  app.activeTurn = idx;
+  $$('.turn.active', $('#tscroll')).forEach(el => el.classList.remove('active'));
+  if (idx >= 0) {
+    const el = $('.turn[data-i="' + idx + '"]');
+    if (el) {
+      el.classList.add('active');
+      if (app.autoScroll) scrollActiveIntoView();
+    }
+  }
+}
+function scrollActiveIntoView() {
+  const el = $('.turn.active');
+  const sc = $('#tscroll');
+  if (!el || !sc) return;
+  app.progScrollUntil = performance.now() + 600;
+  el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+}
+
+/* ---------- auto-analysis rail ---------- */
+function outcomeChip(outcome) {
+  if (!outcome) return '';
+  return '<span class="chip"><span class="ico" aria-hidden="true">●</span>' +
+    esc(OUTCOME_LABELS[outcome] || outcome) + '</span>';
+}
+function sentimentChip(s) {
+  if (!s) return '';
+  const map = {
+    positive: ['st-good', '✓', 'Positive customer'],
+    neutral:  ['', '○', 'Neutral customer'],
+    negative: ['st-critical', '✕', 'Negative customer']
+  };
+  const m = map[s] || ['', '○', s];
+  return '<span class="chip ' + m[0] + '"><span class="ico" aria-hidden="true">' + m[1] + '</span>' + esc(m[2]) + '</span>';
+}
+function flagChip(f) {
+  const low = String(f).toLowerCase();
+  let cls = 'st-warning', ico = '⚠';
+  if (/compliance|risk|abus|threat|legal/.test(low)) { cls = 'st-critical'; ico = '✕'; }
+  else if (/interrupt|pushy|wrong/.test(low)) { cls = 'st-serious'; ico = '⚠'; }
+  return '<span class="chip ' + cls + '"><span class="ico" aria-hidden="true">' + ico + '</span>' + esc(f) + '</span>';
+}
+function meterHTML(v) {
+  let h = '<span class="meter" aria-hidden="true">';
+  for (let i = 1; i <= 5; i++) h += '<span class="' + (v >= i ? 'f' : '') + '"></span>';
+  return h + '</span>';
+}
+
+function renderAutoCard() {
+  const card = $('#autoCard');
+  if (!app.file) { card.innerHTML = ''; card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  if (app.loadingDetail && !app.detail) {
+    card.innerHTML = skelBlock(14, '55%') + skelBlock(50) + skelBlock(70) + skelBlock(40);
+    return;
+  }
+  const an = app.detail && app.detail.analysis;
+  if (!an) {
+    card.innerHTML = '<h2>Auto-analysis</h2><div class="emptystate">Run analysis to see metrics, scores and a summary.</div>';
+    return;
+  }
+  const m = an.metrics || {};
+  const ae = an.auto_eval || {};
+  const sc = ae.scores || {};
+  // null (mono / dead agent channel) means "unmeasurable", not zero
+  const interruptions = (m.interruptions_by_agent == null && m.interruptions_by_customer == null)
+    ? null : (m.interruptions_by_agent || 0) + (m.interruptions_by_customer || 0);
+  let h = '<h2>Auto-analysis</h2>';
+  h += '<div class="chiprow">' + outcomeChip(ae.outcome) + sentimentChip(ae.sentiment_customer) + '</div>';
+  h += '<div class="minitiles">' +
+    tile(fmtDur(an.duration_sec), 'Duration') +
+    tile(pct(m.talk_ratio_agent), 'Agent talk') +
+    tile(m.avg_agent_response_latency_sec == null ? '—' : fmt1(m.avg_agent_response_latency_sec) + ' s', 'Avg response') +
+    tile(interruptions == null ? '—' : String(interruptions), 'Interruptions',
+      interruptions == null ? 'Not measurable (single channel)'
+        : 'Agent: ' + (m.interruptions_by_agent || 0) + ', Customer: ' + (m.interruptions_by_customer || 0)) +
+    '</div>';
+  h += '<div class="sechead">Auto scores</div>';
+  for (const d of DIMS) {
+    const v = sc[d];
+    h += '<div class="meterrow"><span class="lbl">' + DIM_LABELS[d] + '</span>' +
+      meterHTML(v || 0) + '<span class="val num">' + (v == null ? '—' : v) + '</span></div>';
+  }
+  if (ae.summary) h += '<div class="sechead">Summary</div><p class="summary">' + esc(ae.summary) + '</p>';
+  if (ae.flags && ae.flags.length) {
+    h += '<div class="sechead">Flags</div><div class="chiprow">' + ae.flags.map(flagChip).join('') + '</div>';
+  }
+  card.innerHTML = h;
+}
+function tile(v, k, title) {
+  return '<div class="minitile"' + (title ? ' title="' + esc(title) + '"' : '') +
+    '><div class="v num">' + v + '</div><div class="k">' + esc(k) + '</div></div>';
+}
+
+/* ---------- grade panel ---------- */
+function segHTML(id, cur, big) {
+  let h = '<div class="seg ' + (big ? 'big' : 'small') + '" data-seg="' + id + '" id="seg' +
+    id.charAt(0).toUpperCase() + id.slice(1) + '" role="radiogroup" aria-labelledby="seglbl' + id + '">';
+  for (let i = 1; i <= 5; i++) {
+    h += '<button class="num' + (cur === i ? ' on' : '') + '" data-v="' + i + '" role="radio" aria-checked="' + (cur === i) + '">' + i + '</button>';
+  }
+  return h + '</div>';
+}
+
+function renderGrade() {
+  const card = $('#gradeCard');
+  if (!app.file) { card.innerHTML = ''; card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  if (app.loadingDetail && !app.detail) {
+    card.innerHTML = skelBlock(14, '45%') + skelBlock(40) + skelBlock(90) + skelBlock(60);
+    return;
+  }
+  const an = app.detail && app.detail.analysis;
+  const autoSc = (an && an.auto_eval && an.auto_eval.scores) || {};
+  const grades = (app.detail && app.detail.grades) || [];
+  const g = app.grade;
+  const notesVal = $('#notesInput') ? $('#notesInput').value : g.notes;
+  const graderVal = $('#graderInput') ? $('#graderInput').value : (localStorage.getItem('vasooli.grader') || '');
+
+  let h = '<h2>Human grade</h2>';
+  h += '<div class="gradefield" style="margin-top:0"><label id="seglbloverall">Overall <span class="kbd">(keys 1–5)</span></label>' +
+    segHTML('overall', g.overall, true) + '</div>';
+  for (const d of DIMS) {
+    h += '<div class="dimrow"><span class="lbl" id="seglbl' + d + '">' + DIM_LABELS[d] + '</span>' +
+      '<span class="auto num">' + (autoSc[d] != null ? 'auto: ' + autoSc[d] : '') + '</span>' +
+      segHTML(d, g.scores[d]) + '</div>';
+  }
+  h += '<div class="sechead">Tags</div><div class="tagwrap">' +
+    TAGS.map(t => '<button class="tagbtn' + (g.tags.has(t) ? ' on' : '') + '" data-tag="' + esc(t) + '" aria-pressed="' + g.tags.has(t) + '">' + esc(t) + '</button>').join('') +
+    '</div>';
+  h += '<div class="gradefield"><label for="notesInput">Notes</label>' +
+    '<textarea id="notesInput" placeholder="What stood out?">' + esc(notesVal) + '</textarea></div>';
+  h += '<div class="gradefield"><label for="graderInput">Grader</label>' +
+    '<input id="graderInput" type="text" placeholder="Your name" value="' + esc(graderVal) + '"></div>';
+  h += '<div class="saverow">' +
+    '<button id="saveBtn" class="savebtn"' + ((app.saving || !g.overall) ? ' disabled' : '') + '>' +
+      (app.saving ? '<span class="spinner" aria-hidden="true"></span>Saving…' : 'Save grade') + '</button>' +
+    (app.savedFlash ? '<span class="savedmsg"><span aria-hidden="true">✓</span>Saved</span>'
+      : '<span class="kbd">⌘/Ctrl+Enter</span>') +
+    '</div>';
+  if (grades.length) {
+    h += '<details class="ghist" open><summary>Previous grades (' + grades.length + ')</summary>';
+    for (const gr of grades) {
+      h += '<div class="gh-item"><span class="who">' + esc(gr.grader || 'anonymous') + '</span>' +
+        '<span class="num">★' + esc(gr.overall) + '</span>' +
+        (gr.tags && gr.tags.length ? '<span style="color:var(--muted);font-size:11px">' + esc(gr.tags.slice(0, 3).join(', ')) + '</span>' : '') +
+        '<span class="ago">' + esc(fmtAgo(gr.created_at)) + '</span></div>';
+      if (gr.notes) h += '<div class="gh-notes">' + esc(gr.notes) + '</div>';
+    }
+    h += '</details>';
+  }
+  card.innerHTML = h;
+  wireGrade();
+}
+
+function wireGrade() {
+  $$('[data-seg]', $('#gradeCard')).forEach(seg => {
+    seg.addEventListener('click', e => {
+      const b = e.target.closest('button[data-v]');
+      if (!b) return;
+      const v = +b.dataset.v;
+      const key = seg.dataset.seg;
+      if (key === 'overall') app.grade.overall = (app.grade.overall === v ? null : v);
+      else app.grade.scores[key] = (app.grade.scores[key] === v ? undefined : v);
+      preserveAndRenderGrade();
+    });
+  });
+  $$('.tagbtn', $('#gradeCard')).forEach(b => {
+    b.addEventListener('click', () => {
+      const t = b.dataset.tag;
+      if (app.grade.tags.has(t)) app.grade.tags.delete(t);
+      else app.grade.tags.add(t);
+      preserveAndRenderGrade();
+    });
+  });
+  const save = $('#saveBtn');
+  if (save) save.addEventListener('click', saveGrade);
+  const grader = $('#graderInput');
+  if (grader) grader.addEventListener('change', () => localStorage.setItem('vasooli.grader', grader.value.trim()));
+}
+function preserveAndRenderGrade() {
+  const n = $('#notesInput');
+  if (n) app.grade.notes = n.value;
+  renderGrade();
+}
+function setOverall(v) {
+  if (!app.file || !app.detail) return;
+  app.grade.overall = v;
+  preserveAndRenderGrade();
+}
+
+/* ============================================================
+   SECTION F — overview tab (SVG charts)
+   ============================================================ */
+function renderOverviewSkeleton() {
+  $('#ovInner').innerHTML =
+    '<div class="tilerow">' + Array(6).fill('<div class="tile"><div class="skel" style="height:26px;width:60%"></div><div class="skel" style="height:12px;width:80%;margin-top:8px"></div></div>').join('') + '</div>' +
+    '<div class="chartsrow"><div class="card"><div class="skel" style="height:220px"></div></div>' +
+    '<div class="card"><div class="skel" style="height:220px"></div></div></div>';
+}
+
+function barPathTop(x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h));
+  return 'M' + x + ',' + (y + h) +
+    ' L' + x + ',' + (y + r) +
+    ' Q' + x + ',' + y + ' ' + (x + r) + ',' + y +
+    ' L' + (x + w - r) + ',' + y +
+    ' Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) +
+    ' L' + (x + w) + ',' + (y + h) + ' Z';
+}
+function barPathRight(x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, h / 2, w));
+  return 'M' + x + ',' + y +
+    ' L' + (x + w - r) + ',' + y +
+    ' Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) +
+    ' L' + (x + w) + ',' + (y + h - r) +
+    ' Q' + (x + w) + ',' + (y + h) + ' ' + (x + w - r) + ',' + (y + h) +
+    ' L' + x + ',' + (y + h) + ' Z';
+}
+
+function renderOverview() {
+  const s = app.stats;
+  const inner = $('#ovInner');
+  if (!s) { renderOverviewSkeleton(); return; }
+  const gradedPct = s.calls ? Math.round(s.graded / s.calls * 100) + '%' : '—';
+  let h = '<div class="tilerow">' +
+    ovTile(s.calls, 'Total calls') +
+    ovTile(s.analyzed, 'Analyzed') +
+    ovTile(gradedPct, 'Graded') +
+    ovTile(s.avg_overall == null ? '—' : fmt1(s.avg_overall), 'Avg human overall') +
+    ovTile(s.avg_talk_ratio_agent == null ? '—' : Math.round(s.avg_talk_ratio_agent * 100) + '%', 'Avg agent talk ratio') +
+    ovTile(s.avg_response_latency_sec == null ? '—' : fmt1(s.avg_response_latency_sec) + ' s', 'Avg response latency') +
+    '</div>';
+  h += '<div class="chartsrow">' +
+    '<div class="card"><h2>Human vs auto scores by dimension</h2>' + scoresChartHTML(s) + '</div>' +
+    '<div class="card"><h2>Outcomes</h2>' + outcomesChartHTML(s) + '</div>' +
+    '</div>';
+  h += '<div class="card"><h2>Tag frequency</h2>' + tagFreqHTML(s) + '</div>';
+  inner.innerHTML = h;
+  wireChartTips();
+}
+function ovTile(v, k) {
+  return '<div class="tile"><div class="v num">' + esc(String(v)) + '</div><div class="k">' + esc(k) + '</div></div>';
+}
+
+function scoresChartHTML(s) {
+  const human = s.human_avg_scores || {};
+  const auto = s.auto_avg_scores || {};
+  const has = DIMS.some(d => human[d] != null || auto[d] != null);
+  if (!has) return '<div class="emptystate">No scored calls yet.</div>';
+  const W = 500, H = 240, mL = 26, mR = 6, mT = 14, mB = 30;
+  const pw = W - mL - mR, phh = H - mT - mB;
+  const y = v => mT + phh - (v / 5) * phh;
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Grouped bar chart of average human and auto scores per dimension">';
+  for (let gv = 1; gv <= 5; gv++) {
+    svg += '<line class="gridline" x1="' + mL + '" x2="' + (W - mR) + '" y1="' + y(gv) + '" y2="' + y(gv) + '"></line>' +
+      '<text class="axistext" x="' + (mL - 6) + '" y="' + (y(gv) + 3.5) + '" text-anchor="end">' + gv + '</text>';
+  }
+  const groupW = pw / DIMS.length;
+  const barW = 24, gapBars = 2;
+  DIMS.forEach((d, i) => {
+    const cx = mL + groupW * i + groupW / 2;
+    const pair = [
+      { v: human[d], color: 'var(--series-1)', name: 'Human' },
+      { v: auto[d],  color: 'var(--series-2)', name: 'Auto' }
+    ];
+    pair.forEach((p, j) => {
+      if (p.v == null || !isFinite(p.v)) return;
+      const x = cx - (barW + gapBars / 2) + j * (barW + gapBars);
+      const yy = y(p.v), hh = mT + phh - yy;
+      svg += '<path d="' + barPathTop(x, yy, barW, Math.max(hh, 1), 4) + '" fill="' + p.color +
+        '" data-tip="' + esc(p.name + ' · ' + DIM_LABELS[d] + ': ' + fmt1(p.v)) + '"></path>' +
+        '<text class="vallabel" x="' + (x + barW / 2) + '" y="' + (yy - 4) + '" text-anchor="middle">' + fmt1(p.v) + '</text>';
+    });
+    const short = { naturalness: 'Natural', task_completion: 'Task', compliance: 'Compl.', language_quality: 'Language' };
+    svg += '<text class="axistext" x="' + cx + '" y="' + (H - mB + 16) + '" text-anchor="middle">' + short[d] + '</text>';
+  });
+  svg += '<line class="baseline" x1="' + mL + '" x2="' + (W - mR) + '" y1="' + (mT + phh) + '" y2="' + (mT + phh) + '"></line>';
+  svg += '</svg>';
+  return '<div class="legend">' +
+    '<span class="li"><span class="sw" style="background:var(--series-1)"></span>Human</span>' +
+    '<span class="li"><span class="sw" style="background:var(--series-2)"></span>Auto</span>' +
+    '</div><div class="chart-wrap">' + svg + '<div class="charttip"></div></div>';
+}
+
+function outcomesChartHTML(s) {
+  const oc = s.outcomes || {};
+  const entries = Object.entries(oc).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return '<div class="emptystate">No analyzed calls yet.</div>';
+  const rowH = 26, barH = 14, labelW = 118;
+  const W = 500, mR = 34, H = entries.length * rowH + 8;
+  const maxV = Math.max(...entries.map(e => e[1]));
+  const bw = v => (W - labelW - mR) * (v / maxV);
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Outcome counts">';
+  svg += '<line class="baseline" x1="' + labelW + '" x2="' + labelW + '" y1="2" y2="' + (H - 2) + '"></line>';
+  entries.forEach((e, i) => {
+    const yTop = 4 + i * rowH + (rowH - barH) / 2;
+    const w = Math.max(bw(e[1]), 2);
+    const label = OUTCOME_LABELS[e[0]] || e[0];
+    svg += '<text class="axistext" x="' + (labelW - 8) + '" y="' + (yTop + barH / 2 + 3.5) + '" text-anchor="end">' + esc(label) + '</text>' +
+      '<path d="' + barPathRight(labelW, yTop, w, barH, 4) + '" fill="var(--series-1)" data-tip="' + esc(label + ': ' + e[1]) + '"></path>' +
+      '<text class="vallabel" x="' + (labelW + w + 6) + '" y="' + (yTop + barH / 2 + 3.5) + '">' + e[1] + '</text>';
+  });
+  svg += '</svg>';
+  return '<div class="chart-wrap">' + svg + '<div class="charttip"></div></div>';
+}
+
+function tagFreqHTML(s) {
+  const tc = s.tag_counts || {};
+  const entries = Object.entries(tc).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return '<div class="emptystate">No tags yet.</div>';
+  return '<div class="tagfreq">' + entries.map(e =>
+    '<span class="chip">' + esc(e[0]) + '&nbsp;<span class="n num">×' + e[1] + '</span></span>').join('') + '</div>';
+}
+
+function wireChartTips() {
+  $$('.chart-wrap').forEach(wrap => {
+    const tip = $('.charttip', wrap);
+    if (!tip) return;
+    wrap.addEventListener('mousemove', e => {
+      const t = e.target.closest('[data-tip]');
+      if (!t) { tip.style.display = 'none'; return; }
+      tip.textContent = t.dataset.tip;
+      tip.style.display = 'block';
+      const r = wrap.getBoundingClientRect();
+      let x = e.clientX - r.left + 12, yv = e.clientY - r.top - 30;
+      if (x + tip.offsetWidth > r.width) x = r.width - tip.offsetWidth - 4;
+      if (yv < 0) yv = 0;
+      tip.style.left = x + 'px';
+      tip.style.top = yv + 'px';
+    });
+    wrap.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  });
+}
+
+/* ============================================================
+   SECTION G — keyboard shortcuts
+   ============================================================ */
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    saveGrade();
+    return;
+  }
+  const t = e.target;
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+  // Focused interactive elements own their keys: buttons keep Space activation,
+  // and elements with their own keydown handlers (waveform slider, transcript
+  // bubbles) must not double-fire the global shortcuts.
+  if (t && t.closest && t.closest('button, [role="slider"], [role="button"], a[href]')) return;
+  if (e.key === ' ') { e.preventDefault(); togglePlay(); return; }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); skip(-5); return; }
+  if (e.key === 'ArrowRight') { e.preventDefault(); skip(5); return; }
+  if (e.key === 'j') { moveSel(1); return; }
+  if (e.key === 'k') { moveSel(-1); return; }
+  if (/^[1-5]$/.test(e.key)) { setOverall(+e.key); }
+});
+
+/* ============================================================
+   SECTION H — boot
+   ============================================================ */
+loadCalls(false);
+</script>
+</body>
+</html>
