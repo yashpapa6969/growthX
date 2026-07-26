@@ -53,8 +53,14 @@ export async function buildTurnContext(customerId: string, role: Role): Promise<
   );
   const broken = dues.flatMap((d) => d.promises).filter((p) => !p.kept && p.promisedDate < new Date()).length;
 
+  // Catalogue only for ordering (keeps the collection-call prompt lean).
+  const catalogue = role === "order"
+    ? (await prisma.product.findMany()).map((p) => ({ name: p.name, nameHi: p.nameHi, price: p.price }))
+    : undefined;
+
   // TODO(M-Stretch-1): merge active persona.promptFragment + Playbook.content into personaPrompt.
   return {
+    catalogue,
     role,
     customer: {
       id: customer.id,

@@ -89,7 +89,7 @@ payments shows money landed, confirm the exact received amount and state any bal
 
 function systemPrompt(ctx: TurnContext): string {
   const merchant = (ctx.rules?.merchant as string) ?? "Sharma Kirana Store";
-  const ledger = { customer: ctx.customer, dues: ctx.dues, promises: ctx.promises, history: ctx.history, rules: ctx.rules };
+  const ledger = { customer: ctx.customer, dues: ctx.dues, promises: ctx.promises, history: ctx.history, catalogue: ctx.catalogue, rules: ctx.rules };
   const contextBlock = "CONTEXT (the khata — source of truth):\n" + JSON.stringify(ledger, null, 2);
   return [coreRules(ctx, merchant), ROLE_PROMPTS[ctx.role] ?? ROLE_PROMPTS.call, contextBlock, OUTPUT_CONTRACT].join("\n\n");
 }
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       { role: "system", content: systemPrompt(context) },
       ...history,
       { role: "user", content: transcript || "(customer has not spoken yet — compose your opening line)" },
-    ], { model: "sarvam-30b", maxTokens: 2000 }); // reasoning model: budget must exceed its private reasoning
+    ], { model: "sarvam-30b", maxTokens: 4000 }); // reasoning model emits ~700-1000 tokens of hidden reasoning BEFORE the answer; budget must clear it or content comes back empty
     const tLLM = Date.now();
 
     const { say, tone, intents } = parseAgent(raw);
