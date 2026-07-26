@@ -26,11 +26,15 @@ function compactCtx(ctx: TurnContext): string {
   const dues = (ctx.dues ?? []).map((d) => `${d.id}: ₹${d.balance} of ₹${d.amount} (${d.status})`).join("; ") || "none";
   const proms = (ctx.promises ?? []).map((p) => `${p.source} ${String(p.promisedDate).slice(0, 10)}${p.kept ? "" : " BROKEN"}`).join("; ") || "none";
   const cat = (ctx.catalogue ?? []).map((p) => `${p.name} ₹${p.price}`).join(", ");
+  const ords = (ctx.orders ?? [])
+    .map((o) => `${String(o.date).slice(0, 10)}: ${(Array.isArray(o.items) ? o.items : []).map((i: any) => `${i.qty}× ${i.name}`).join(", ")} = ₹${o.total}`)
+    .join(" | ");
   const lines = [
     `Customer: ${c.name} (${c.language})${c.historySummary ? " — " + c.historySummary : ""}`,
     `Open dues [id: bal of total]: ${dues}`,
     `Promises: ${proms}`,
   ];
+  if (ords) lines.push(`Recent orders (cite the exact items/date when asked about their order): ${ords}`);
   if (cat) lines.push(`Catalogue (use these EXACT prices, never invent): ${cat}`);
   return lines.join("\n");
 }

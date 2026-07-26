@@ -59,6 +59,11 @@ export async function buildTurnContext(customerId: string, role: Role, personaId
     ? (await prisma.product.findMany()).map((p) => ({ name: p.name, nameHi: p.nameHi, price: p.price }))
     : undefined;
 
+  // Recent orders so the agent can cite the customer's actual purchase history ("your last order was…") —
+  // unified memory: the same agent that took the order references it on the nudge and the call.
+  const recentOrders = (await prisma.order.findMany({ where: { customerId }, orderBy: { simDate: "desc" }, take: 3 }))
+    .map((o) => ({ items: o.items, total: o.total, date: o.simDate.toISOString() }));
+
   // Persona (A/B) + shared Playbook merged into a single prompt block the voice agents splice in.
   // Dynamic import breaks the memory<->harness module cycle (harness imports from here).
   const { assignPersona } = await import("./harness");
@@ -73,6 +78,7 @@ export async function buildTurnContext(customerId: string, role: Role, personaId
 
   return {
     catalogue,
+    orders: recentOrders,
     personaPrompt,
     personaId: persona?.id,
     role,

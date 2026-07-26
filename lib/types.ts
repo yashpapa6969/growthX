@@ -34,6 +34,7 @@ export interface TurnContext {
   promises?: { promisedDate: string; source: string; kept: boolean }[];
   history?: { surface: string; summary: string; simTs: string }[];
   catalogue?: { name: string; nameHi: string; price: number }[]; // products (order role) so the agent can price items
+  orders?: { items: any; total: number; date: string }[]; // recent orders so the agent can cite "your last order"
   rules?: Record<string, any>;
   simDate: string;
   // M-Stretch-1: active persona prompt fragment + shared playbook, merged.

@@ -2,6 +2,7 @@
 // The timeline IS the Memory & Context evidence: one customer, every surface, one record.
 import { prisma } from "@/lib/db";
 import { PayButton } from "@/components/PayButton";
+import { CallButton } from "@/components/CallButton";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function LedgerPage() {
               <div className="font-semibold">{c.name} <span className="text-xs text-gray-400">trust {c.trustScore} · {c.escalationStage}</span></div>
               <div className={balance > 0 ? "font-bold text-khata-firm" : "font-bold text-khata"}>₹{balance} due</div>
             </div>
+            {balance > 0 && <CallButton customerId={c.id} phone={c.phone} />}
             <div className="mt-2 grid gap-3 md:grid-cols-2">
               <div>
                 <div className="text-xs font-medium uppercase text-gray-400">Dues</div>

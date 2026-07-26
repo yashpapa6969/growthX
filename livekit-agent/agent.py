@@ -103,11 +103,13 @@ TOOLS (call them at the right moment; never mention tools aloud):
 - escalate(reason, summary): hardship, hostility, or a discount request. A polite close + escalate is a CORRECT ending.
 
 CONTEXT (the khata — source of truth):
-{json.dumps({k: ctx.get(k) for k in ("customer", "dues", "promises", "history", "rules") if ctx.get(k) is not None}, ensure_ascii=False, indent=2)}""" + (f"\n\n{ctx.get('personaPrompt')}" if ctx.get("personaPrompt") else "")
+{json.dumps({k: ctx.get(k) for k in ("customer", "dues", "promises", "orders", "history", "rules") if ctx.get(k) is not None}, ensure_ascii=False, indent=2)}""" + (f"\n\n{ctx.get('personaPrompt')}" if ctx.get("personaPrompt") else "")
 
 
 class VasooliAgent(Agent):
-    def __init__(self, instructions: str, customer_id: str, ctx: dict):
+    def __init__(self, instructions: str, customer_id: str, ctx: dict, role: str = "call"):
+        self.ctx = ctx
+        self.role = role
         lang = (ctx.get("customer") or {}).get("language", "hi-IN")
         # Fast dialogue brain (Gemini/OpenAI-compat) when LLM_* env is set; else slow sarvam-30b.
         # Saaras STT + Bulbul TTS stay Sarvam (the scored Voice).
@@ -126,7 +128,20 @@ class VasooliAgent(Agent):
         self.customer_id = customer_id
 
     async def on_enter(self):
-        self.session.generate_reply()  # agent speaks first
+        # Gemini's OpenAI-compat endpoint 400s on a system-only request (no user turn yet), so we
+        # speak a templated opener that cites the khata, then let the LLM drive every later turn
+        # (those carry the customer's STT text, so `contents` is non-empty and Gemini is happy).
+        c = self.ctx.get("customer") or {}
+        name = c.get("name", "")
+        dues = self.ctx.get("dues") or []
+        bal = dues[0].get("balance") if dues else None
+        if self.role == "order":
+            opener = f"Namaste {name} ji, Sharma Kirana Store. Bataiye, aaj kya chahiye?"
+        elif bal:
+            opener = f"Namaste {name} ji, Sharma Kirana Store se. Aapka {bal} rupaye ka hisaab pending hai — kya is baare mein baat kar sakte hain?"
+        else:
+            opener = f"Namaste {name} ji, Sharma Kirana Store se baat kar rahe hain."
+        self.session.say(opener)
 
     @function_tool
     async def place_on_khata(self, ctx: RunContext, items: list, total_inr: float = 0):
@@ -198,7 +213,7 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(_score_on_shutdown)
 
-    await session.start(agent=VasooliAgent(instructions, customer_id or "", data), room=ctx.room)
+    await session.start(agent=VasooliAgent(instructions, customer_id or "", data, role), room=ctx.room)
 
 
 if __name__ == "__main__":

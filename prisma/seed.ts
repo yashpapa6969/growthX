@@ -50,20 +50,23 @@ async function main() {
       historySummary: "Regular since 8 months. Usually buys atta, dal, Parle-G. Pays within a week normally.",
     },
   });
+  // Items sum to EXACTLY the total: 250×4 + 160×3 + 140×2 + 30×3 = 1000+480+280+90 = 1850.
   const rOrder = await prisma.order.create({
-    data: { customerId: rahul.id, total: 1850, onKhata: true, simDate: daysAgo(9),
-      items: [{ name: "Aashirvaad Atta 5kg", qty: 4, price: 250 }, { name: "Toor Dal 1kg", qty: 3, price: 160 }, { name: "Fortune Oil 1L", qty: 2, price: 140 }, { name: "Sugar 1kg", qty: 1, price: 45 }] as any },
+    data: { customerId: rahul.id, total: 1850, onKhata: true, simDate: daysAgo(14),
+      items: [{ name: "Aashirvaad Atta 5kg", qty: 4, price: 250 }, { name: "Toor Dal 1kg", qty: 3, price: 160 }, { name: "Fortune Oil 1L", qty: 2, price: 140 }, { name: "Parle-G Pack", qty: 3, price: 30 }] as any },
   });
   const rDue = await prisma.due.create({ data: { orderId: rOrder.id, customerId: rahul.id, amount: 1850, balance: 1850, status: "open" } });
-  await prisma.promise.create({ data: { dueId: rDue.id, customerId: rahul.id, promisedDate: daysAgo(2), source: "nudge", kept: false } });
-  await prisma.interaction.create({ data: { customerId: rahul.id, surface: "nudge", simTs: daysAgo(4), summary: "Nudged about ₹1,850. Replied 'Monday tak pakka'.", outcome: "promise_recorded", tone: "warm" } });
+  // Broken promise: promised Monday 20 Jul 2026 (daysAgo(6) from Sun 26 Jul), now overdue.
+  await prisma.promise.create({ data: { dueId: rDue.id, customerId: rahul.id, promisedDate: daysAgo(6), source: "nudge", kept: false } });
+  await prisma.interaction.create({ data: { customerId: rahul.id, surface: "nudge", simTs: daysAgo(9), summary: "Nudged about ₹1850. Replied 'Monday (20 July) tak pakka'.", outcome: "promise_recorded", tone: "warm" } });
 
   // --- Case 2: Meena — "already paid" dispute. ₹500 partial exists; ₹100 balance. Delight. ---
   const meena = await prisma.customer.create({
     data: { name: "Meena Devi", phone: "+919000000002", language: "hi-IN", trustScore: 90, escalationStage: "called",
       historySummary: "Reliable. Paid ₹500 of ₹600 last week; small balance remains." },
   });
-  const mOrder = await prisma.order.create({ data: { customerId: meena.id, total: 600, onKhata: true, simDate: daysAgo(12), items: [{ name: "Tata Tea 250g", qty: 2, price: 130 }, { name: "Amul Milk 1L", qty: 5, price: 66 }] as any } });
+  // Items sum to EXACTLY the total: 130×1 + 66×5 + 140×1 = 130+330+140 = 600.
+  const mOrder = await prisma.order.create({ data: { customerId: meena.id, total: 600, onKhata: true, simDate: daysAgo(12), items: [{ name: "Tata Tea 250g", qty: 1, price: 130 }, { name: "Amul Milk 1L", qty: 5, price: 66 }, { name: "Fortune Oil 1L", qty: 1, price: 140 }] as any } });
   const mDue = await prisma.due.create({ data: { orderId: mOrder.id, customerId: meena.id, amount: 600, balance: 100, status: "partial" } });
   await prisma.payment.create({ data: { dueId: mDue.id, amount: 500, status: "paid", paidAt: daysAgo(6) } });
 
@@ -72,7 +75,8 @@ async function main() {
     data: { name: "Amit Kumar", phone: "+919000000003", language: "hi-IN", trustScore: 40, escalationStage: "escalated",
       historySummary: "Broke two prior promises. Slow payer. Needs a firm, direct ask." },
   });
-  const aOrder = await prisma.order.create({ data: { customerId: amit.id, total: 2400, onKhata: true, simDate: daysAgo(25), items: [{ name: "Surf Excel 1kg", qty: 4, price: 110 }, { name: "Fortune Oil 1L", qty: 8, price: 140 }] as any } });
+  // Items sum to EXACTLY the total: 250×4 + 140×10 = 1000+1400 = 2400.
+  const aOrder = await prisma.order.create({ data: { customerId: amit.id, total: 2400, onKhata: true, simDate: daysAgo(25), items: [{ name: "Aashirvaad Atta 5kg", qty: 4, price: 250 }, { name: "Fortune Oil 1L", qty: 10, price: 140 }] as any } });
   const aDue = await prisma.due.create({ data: { orderId: aOrder.id, customerId: amit.id, amount: 2400, balance: 2400, status: "open" } });
   await prisma.promise.createMany({ data: [
     { dueId: aDue.id, customerId: amit.id, promisedDate: daysAgo(14), source: "call", kept: false },
@@ -128,6 +132,7 @@ async function main() {
   });
 
   console.log("Seeded: 10 products, 3 customers (Rahul/Meena/Amit), 3 personas,", scored.length, "scored calls. simDate =", SIM_NOW.toISOString());
+  console.log("Canonical story — Rahul: ₹1850 due, broke Monday 20-Jul promise. Meena: ₹100 balance of ₹600 (paid ₹500). Amit: ₹2400 due, 2 broken promises.");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());
