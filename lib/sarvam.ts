@@ -79,8 +79,12 @@ export async function chat(
       model: useFast ? FAST_MODEL : (opts.model ?? "sarvam-30b"),
       temperature: opts.temperature ?? 0.4,
       // A fast non-reasoning model needs almost no budget; sarvam-30b needs headroom to clear
-      // its (un-disableable) reasoning or content truncates to empty. Never set json_object here.
-      max_tokens: useFast ? 600 : (opts.maxTokens ?? 4000),
+      // its (un-disableable) reasoning or content truncates to empty.
+      max_tokens: useFast ? 800 : (opts.maxTokens ?? 4000),
+      // Force strict JSON on the fast (Gemini/OpenAI-compat) path so `say` is always present and
+      // intents parse reliably. sarvam-30b's reasoning breaks json_object, so only for the fast path.
+      // All chat() callers parse JSON. Every prompt mentions "JSON" (json_object requires it).
+      ...(useFast ? { response_format: { type: "json_object" } } : {}),
       messages,
     }),
   });

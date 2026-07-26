@@ -46,7 +46,8 @@ export async function placeOnKhata(input: {
 
   for (const raw of input.items) {
     const name = String(raw?.item ?? "").trim();
-    const qty = Number(raw?.qty) || 0;
+    // Coerce qty defensively: the LLM sometimes emits "1kg"/"2 packet" instead of a number.
+    const qty = Number(raw?.qty) || Number(String(raw?.qty ?? "").match(/[\d.]+/)?.[0]) || 0;
     if (!name || qty <= 0) throw new KhataError("each item needs a name and positive qty");
 
     const product = await prisma.product.findFirst({

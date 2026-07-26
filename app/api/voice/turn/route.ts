@@ -49,8 +49,26 @@ Rules: no discounts/waivers (escalate instead); min partial = 30% of balance or 
 ${ctx.personaPrompt ? "\n" + ctx.personaPrompt + "\n" : ""}
 ${compactCtx(ctx)}
 
-Reply ONLY as JSON (a plain \`\`\`json fenced block is fine): {"say":"<short Hindi line>","tone":"warm|neutral|firm","intents":[...]}
-Intents (ONLY when the action truly happens, else []): add_to_cart{item,qty} | place_on_khata{items:[{item,qty}],total_inr} | record_promise{due_id,promised_date:"YYYY-MM-DD",verbatim} | send_payment_link{due_id,amount_inr} | acknowledge_partial{due_id,amount_inr,paid_on} | escalate{reason,summary}`;
+Reply ONLY as a JSON object: {"say":"<short Hindi line>","tone":"warm|neutral|firm","intents":[...]}
+Each intent MUST be {"type":"<name>","payload":{...}} — never {"<name>":{...}}. qty and amounts are NUMBERS (1, not "1kg").
+Emit an intent ONLY when the action truly happens this turn, else "intents":[]. Valid intents:
+- {"type":"place_on_khata","payload":{"items":[{"item":"Sugar","qty":1}],"total_inr":45}}  (AFTER the customer confirms)
+- {"type":"record_promise","payload":{"due_id":"<id>","promised_date":"YYYY-MM-DD","verbatim":"<their words>"}}
+- {"type":"send_payment_link","payload":{"due_id":"<id>","amount_inr":1000}}
+- {"type":"acknowledge_partial","payload":{"due_id":"<id>"}}
+- {"type":"escalate","payload":{"reason":"<why>","summary":"<case>"}}`;
+}
+
+const KNOWN_INTENTS = ["add_to_cart", "place_on_khata", "record_promise", "send_payment_link", "acknowledge_partial", "escalate"];
+
+/** Normalize the many shapes a fast LLM emits into our {type,payload} contract.
+ *  Accepts {type,payload}, {type,...fields}, and Gemini's {place_on_khata:{...}}. */
+function normIntent(raw: any): Intent | null {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.type === "string") return { type: raw.type as any, payload: raw.payload ?? raw };
+  const k = Object.keys(raw).find((key) => KNOWN_INTENTS.includes(key));
+  if (k) return { type: k as any, payload: raw[k] ?? {} };
+  return null;
 }
 
 function parseAgent(raw: string): { say: string; tone: Tone; intents: Intent[] } {
@@ -63,7 +81,7 @@ function parseAgent(raw: string): { say: string; tone: Tone; intents: Intent[] }
       const j = JSON.parse(stripped.slice(first, last + 1));
       const say = String(j.say ?? j.reply ?? j.text ?? "").trim();
       if (say) {
-        const intents = Array.isArray(j.intents) ? j.intents.filter((i: any) => i && i.type) : [];
+        const intents = (Array.isArray(j.intents) ? j.intents : []).map(normIntent).filter(Boolean) as Intent[];
         return { say, tone: (j.tone ?? "neutral") as Tone, intents };
       }
     } catch {
