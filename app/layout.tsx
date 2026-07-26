@@ -14,6 +14,7 @@ const nav = [
   { href: "/call", label: "Call" },
   { href: "/ledger", label: "Ledger" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/campaigns", label: "Campaigns" },
   { href: "/evals", label: "Evals" },
   { href: "/db", label: "DB" },
 ];
