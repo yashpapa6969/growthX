@@ -1,0 +1,3 @@
+livekit-agents[sarvam,silero]
+python-dotenv
+httpx
