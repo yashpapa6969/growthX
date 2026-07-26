@@ -45,8 +45,9 @@ export async function selectContactList(): Promise<{ now: string; withinWindow: 
     const broken = active.filter((p) => p.promisedDate < now).length;
     const hasPending = active.some((p) => p.promisedDate >= now);
 
-    if (hasPending) continue;          // guardrail: waiting on a live promise — don't chase yet
-    if (ageDays < GRACE_DAYS) continue; // guardrail: still inside the grace period
+    if (hasPending) continue;                        // guardrail: waiting on a live promise — don't chase yet
+    // A broken promise makes a due eligible immediately (call); otherwise gate on the grace period (nudge).
+    if (broken === 0 && ageDays < GRACE_DAYS) continue;
 
     const tone = escalationTone(d.customer.trustScore, broken);
     // Ladder: never-contacted + newly overdue -> warm nudge; already nudged, or a broken promise -> call.
