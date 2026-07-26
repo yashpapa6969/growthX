@@ -72,24 +72,48 @@ export async function buildTurnContext(customerId: string, role: Role): Promise<
   };
 }
 
-/** Execute one intent returned by the voice service. Add a case per IntentType as you build. */
+/**
+ * Execute one intent returned by the voice service (push-to-talk path).
+ * Shares all ledger-mutation logic with the /api/khata route via lib/khata.ts.
+ * The voice contract uses snake_case payload keys (due_id, promised_date, amount_inr).
+ */
 export async function executeIntent(customerId: string, intent: Intent): Promise<void> {
+  // Dynamic import breaks the memory<->khata module cycle (khata imports from here).
+  const { placeOnKhata, recordPromise, sendPaymentLink, escalate } = await import("./khata");
+  const p = intent.payload ?? {};
   switch (intent.type) {
     case "place_on_khata":
-      // TODO(Eng2): create Order + Due from cart in intent.payload.items
+      await placeOnKhata({
+        customerId,
+        items: (p.items ?? []) as { item: string; qty: number }[],
+        total_inr: p.total_inr,
+      });
       break;
-    case "record_promise": {
-      // TODO(Eng2): supersede any prior open promise for this due, then create the new one.
+    case "record_promise":
+      await recordPromise({
+        customerId,
+        dueId: p.due_id ?? p.dueId,
+        promised_date: p.promised_date,
+        source: p.source ?? "call",
+        verbatim: p.verbatim,
+      });
       break;
-    }
     case "send_payment_link":
-      // TODO(Eng2): call /api/razorpay/link, attach to the Due, surface link in the chat/call view.
+      await sendPaymentLink({
+        dueId: p.due_id ?? p.dueId,
+        amount: p.amount_inr ?? p.amount,
+      });
       break;
     case "acknowledge_partial":
-      // Delight branch: ledger already reflects the partial; nothing to write, agent just acknowledges.
+      // Delight branch: ledger already reflects the partial; nothing to write. The
+      // agent reads the partial back from context; no mutation needed here.
       break;
     case "escalate":
-      await prisma.customer.update({ where: { id: customerId }, data: { escalationStage: "escalated" } });
+      await escalate({
+        customerId,
+        reason: p.reason ?? "unspecified",
+        summary: p.summary ?? "",
+      });
       break;
     case "add_to_cart":
     case "none":
