@@ -51,6 +51,7 @@ ${compactCtx(ctx)}
 
 Reply ONLY as a JSON object: {"say":"<short Hindi line>","tone":"warm|neutral|firm","intents":[...]}
 Each intent MUST be {"type":"<name>","payload":{...}} — never {"<name>":{...}}. qty and amounts are NUMBERS (1, not "1kg").
+Keep "intents" SHORT: emit at most ONE record_promise and ONE send_payment_link per turn (use the oldest open due).
 Emit an intent ONLY when the action truly happens this turn, else "intents":[]. Valid intents:
 - {"type":"place_on_khata","payload":{"items":[{"item":"Sugar","qty":1}],"total_inr":45}}  (AFTER the customer confirms)
 - {"type":"record_promise","payload":{"due_id":"<id>","promised_date":"YYYY-MM-DD","verbatim":"<their words>"}}
