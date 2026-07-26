@@ -45,7 +45,7 @@ async function main() {
   // --- Case 1: Rahul — good regular, ONE broken promise. The main demo arc. ---
   const rahul = await prisma.customer.create({
     data: {
-      name: "Rahul Sharma", phone: "+919000000001", language: "hi-IN",
+      name: "Rahul Sharma", phone: "+919614711534", language: "hi-IN",
       trustScore: 85, escalationStage: "nudged",
       historySummary: "Regular since 8 months. Usually buys atta, dal, Parle-G. Pays within a week normally.",
     },
@@ -72,7 +72,7 @@ async function main() {
 
   // --- Case 3: Amit — chronic promise-breaker. Ladder opens FIRM. ---
   const amit = await prisma.customer.create({
-    data: { name: "Amit Kumar", phone: "+919000000003", language: "hi-IN", trustScore: 40, escalationStage: "escalated",
+    data: { name: "Amit Kumar", phone: "+918587979420", language: "hi-IN", trustScore: 40, escalationStage: "escalated",
       historySummary: "Broke two prior promises. Slow payer. Needs a firm, direct ask." },
   });
   // Items sum to EXACTLY the total: 250×4 + 140×10 = 1000+1400 = 2400.
