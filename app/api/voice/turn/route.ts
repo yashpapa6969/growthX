@@ -54,13 +54,30 @@ Intents (ONLY when the action truly happens, else []): add_to_cart{item,qty} | p
 }
 
 function parseAgent(raw: string): { say: string; tone: Tone; intents: Intent[] } {
-  try {
-    const j = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
-    const say = String(j.say ?? j.reply ?? "").trim();
-    return { say, tone: (j.tone ?? "neutral") as Tone, intents: Array.isArray(j.intents) ? j.intents : [] };
-  } catch {
-    return { say: "", tone: "neutral", intents: [] };
+  const stripped = String(raw ?? "").replace(/```json/gi, "").replace(/```/g, "").trim();
+  // Preferred path: the model returned the JSON contract.
+  const first = stripped.indexOf("{");
+  const last = stripped.lastIndexOf("}");
+  if (first !== -1 && last > first) {
+    try {
+      const j = JSON.parse(stripped.slice(first, last + 1));
+      const say = String(j.say ?? j.reply ?? j.text ?? "").trim();
+      if (say) {
+        const intents = Array.isArray(j.intents) ? j.intents.filter((i: any) => i && i.type) : [];
+        return { say, tone: (j.tone ?? "neutral") as Tone, intents };
+      }
+    } catch {
+      // fall through to prose salvage
+    }
   }
+  // Fast general models often reply in plain prose (esp. for nudges) instead of the JSON
+  // contract. Speak that prose directly rather than dropping to a stock "Ji, bataiye?" line.
+  let prose = stripped;
+  if (prose.startsWith("{")) {
+    const m = prose.match(/"say"\s*:\s*"([^"]+)"/); // salvage say from broken JSON
+    prose = m ? m[1] : "";
+  }
+  return { say: prose.slice(0, 500), tone: "neutral", intents: [] };
 }
 
 export async function POST(req: NextRequest) {
@@ -83,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     const { say, tone, intents } = parseAgent(raw);
     const safeSay = say || "Ji, bataiye?";
-    const agentAudioB64 = role === "nudge" ? null : await tts(safeSay, { languageCode: context.customer.language, tone });
+    const agentAudioB64 = role === "nudge" || body.skipTts ? null : await tts(safeSay, { languageCode: context.customer.language, tone });
     const tTTS = Date.now();
 
     const res: VoiceTurnResponse = { transcript, agentText: safeSay, agentAudioB64, tone, intents };

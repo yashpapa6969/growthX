@@ -51,6 +51,7 @@ export interface VoiceTurnRequest {
   mime?: string; // audio mime from MediaRecorder, e.g. "audio/webm" (Saaras accepts webm/opus directly)
   text?: string; // typed fallback / inbox replies
   turns?: ConversationTurn[]; // prior turns this session -> continued conversation over HTTP (no websocket)
+  skipTts?: boolean; // eval/batch mode: return text + intents only, no Bulbul audio (faster)
   role: Role;
   context: TurnContext;
 }
