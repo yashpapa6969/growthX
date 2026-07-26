@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       { role: "system", content: systemPrompt(context) },
       ...history,
       { role: "user", content: transcript || "(customer has not spoken yet — compose your opening line)" },
-    ], { model: "sarvam-30b", maxTokens: 1500 }); // lean prompt + no json_object -> ~1.5-3s
+    ], { model: "sarvam-30b", maxTokens: 4000 }); // must clear the model's hidden reasoning or content truncates to empty; ~7-10s with real context
     const tLLM = Date.now();
 
     const { say, tone, intents } = parseAgent(raw);
