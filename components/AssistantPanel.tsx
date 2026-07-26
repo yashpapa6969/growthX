@@ -85,7 +85,7 @@ export function AssistantPanel({ customerId, role }: { customerId: string; role:
       if (!res.ok || data.error) { setError(`server: ${data.error ?? res.status}`); setState("idle"); return; }
 
       setTranscript(data.transcript); setAgentText(data.agentText); setIntents(data.intents ?? []); setTone(data.tone);
-      turns.current = [...turns.current, { role: "user", content: data.transcript }, { role: "assistant", content: data.agentText }].slice(-12);
+      turns.current = [...turns.current, { role: "user" as const, content: data.transcript }, { role: "assistant" as const, content: data.agentText }].slice(-12);
       if (data.agentAudioB64) await playAudio(data.agentAudioB64);
       else setState("idle");
     } catch (e: any) {
