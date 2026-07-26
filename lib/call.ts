@@ -52,6 +52,9 @@ export async function buildAgentVariables(customerId: string) {
   const partialPaidTotal = due.payments.reduce((s, p) => s + p.amount, 0);
 
   const agentVariables = {
+    // Correlation ids so the post-call webhook (/api/call/outcome) can match the call to a ledger row.
+    customerId: customer.id,
+    dueId: due.id,
     userName: customer.name,
     order_items_summary: orderItemsSummary,
     due_amount: String(due.amount),
