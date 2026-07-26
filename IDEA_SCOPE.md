@@ -263,6 +263,10 @@ Voice service is stateless: web builds `context` from the DB, voice returns inte
 | Promise | due id, promised date, source (chat/call), kept? | Same | Persistent |
 | Interaction | surface, timestamp (simulated clock), transcript/summary, outcome | Same | Persistent |
 | Call session | negotiation state, amounts discussed, per-hop latency | In-memory + log | Session |
+| persona *(M-Stretch-1)* | id, name, prompt_fragment, tone_params | Postgres | Persistent |
+| learning *(M-Stretch-1)* | play, evidence, observed_lift, promoted bool | Postgres | Persistent |
+| playbook *(M-Stretch-1)* | shared prompt fragment all personas inherit, version | Postgres | Persistent |
+| interaction (harness fields) *(M-Stretch-1)* | persona_id, outcome_score, recovered/due, turns, sentiment | Postgres | Persistent |
 
 ### External dependencies
 
@@ -371,6 +375,31 @@ Required:
 Acceptance test:
 
 > A first-time user triggers the dispute moment on the normal golden path and the agent resolves it from the ledger unprompted; the timeline separately shows the governed ladder (Creativity evidence distinct from Delight evidence).
+
+**M4 stretch priority (choose at 2:30 by where you are — never let any of these touch the M4 core above):**
+1. **M-Stretch-1 — Optimization harness** (recommended if M3 is verified; it outranks the avatar rig on rubric ROI). See below.
+2. Avatar Rive/Lottie rig (else stay on the orb).
+3. Bengali mid-call switch.
+
+### M-Stretch-1 — Optimization harness (GATED: only if M3 acceptance passed by 2:30; else CUT entirely)
+
+**Purpose:** Make "collection skill is a measurable, compounding, transferable asset" a *demoable* mechanism — not a platform pitch. Honest scope: **offline eval + human-gated promotion**, populated from the seeded cases + any live runs.
+
+Required (thinnest honest version):
+
+- `persona` variants as prompt fragments (3: e.g. Warm Didi / Firm Munim / Data-driven Negotiator); each call tagged with its `persona_id`.
+- Auto outcome score per call at hangup: `recovered/due`, got-PTP, turns-to-resolution, sentiment → one `outcome_score`.
+- `/dashboard`: per-persona leaderboard (recovery rate, avg turns) over seeded + live runs — the harness's ONLY permitted dashboard.
+- "Coach" pass: one LLM call over a batch of transcripts+outcomes → 2–3 structured `learnings` (play, evidence, observed lift) and a proposed edit to a shared `playbook` prompt fragment all personas inherit.
+- One **human-gated "Promote"** action + a live **before/after re-run on one seeded tough case** showing the lift.
+
+Explicitly excluded: online learning, autonomous promotion, statistical-significance claims, cross-model weight transfer, A/B infra beyond round-robin assignment.
+
+Acceptance test:
+
+> On stage, the leaderboard shows a real outcome gap between two personas over the seeded set, the coach names one concrete winning play, and promoting it visibly changes the agent's opening on a re-run of one seeded case.
+
+Rubric intent: additive **Creativity** (the reframe/mechanism, NOT the dashboard) + narrated **Impact** (recovery-rate lever, labelled a prototype signal). Evidence split: the *promotion mechanism* → Creativity; the *% lift on the seeded set* → Impact. Never claim both from the same number.
 
 ### M5 — Demo hardening and submission — **3:20–4:30 (protected; no new features)**
 
@@ -486,7 +515,8 @@ The following are explicitly outside the build:
 1. Real WhatsApp Business API, real telephony/PSTN, real money.
 2. Multi-customer autonomous collection queues, merchant onboarding, catalogue management.
 3. Interest/penalty computation, credit scoring, any lending-regulation territory.
-4. Bengali as a committed feature (stretch flourish only), voice cloning, avatars, dashboards.
+4. Bengali as a committed feature (stretch flourish only), voice cloning.
+5. **Any online / autonomous "self-improvement":** no live model fine-tuning, no autonomous prompt mutation in the demo, no claim of statistical significance (n is tiny). The harness (M-Stretch-1) is an **offline eval + human-gated promotion** loop only. A dashboard is permitted **only** as the harness's evidence surface, never as a standalone deliverable.
 
 Any change to these requires an explicit scope decision.
 
@@ -494,6 +524,8 @@ Any change to these requires an explicit scope decision.
 
 | Idea | Potential value | Why not now | Revisit after |
 |---|---|---|---|
+| Optimization harness (personas + leaderboard + coach + gated promotion) | Creativity reframe + Impact lever + strong pitch narrative | Competes with M4 polish; must not touch the live scored call | **M3 verified (2:30) — then M-Stretch-1, outranks avatar rig** |
+| mem0 hosted Platform soft-memory ("mentioned daughter's wedding") | Relationship texture on call opening | Not the scored memory; extra dependency + latency | If M-Stretch-1 done and still ahead (M-Stretch-2) |
 | Real Twilio WhatsApp sandbox + PSTN call | Big credibility jump | Account/approval risk on the day | Post-event |
 | Bengali mid-call language switch | Cheap Voice flourish (both langs supported) | Protect M4 core | If M4 done by 3:00 |
 | Merchant daily digest ("aaj ki vasooli") | Nice JTBD artifact | Not the declared job | Post-event |
@@ -553,3 +585,5 @@ Event Sarvam API key; Razorpay test account setup.
 | Jul 26, pre-kickoff | Channels simulated (WhatsApp-style UI + browser call), disclosed up front | Cuts Meta/Twilio day-of risk; memory evidence preserved | Twilio to parking lot; disclosure sentence mandatory |
 | Jul 26, pre-kickoff | Real Razorpay **test-mode** payment closes the loop mid-call | Strongest JTBD close; venue synergy; webhook is routine for team | Razorpay in M0 critical path with mark-paid fallback |
 | Jul 26, pre-kickoff | Ordering flow = memory-seeding prologue, not a second scored job | JTBD requires one declared job | Demo script anchors on the collection |
+| Jul 26, build | **Memory layer = structured Postgres, not mem0/vector DB.** Qdrant NOT deployed. | Rubric's Memory & Context = governed exact state (dues, promises, tenant isolation, corrections), a relational problem; money-critical facts must be exact, not fuzzily extracted; mem0 adds per-turn latency + can surface stale/contradictory memories, working against the correction-propagation the rubric rewards. Qdrant avoidable anyway (mem0 hosted Platform needs no vector store; self-host supports pgvector). | mem0 optional soft-memory only, hosted Platform, off critical path, M-Stretch-2 only |
+| Jul 26, build | **Self-improving harness scoped as offline eval + promotion loop, gated stretch — NOT a critical-path feature.** | It completes no live user job (can't raise JTBD/Voice); real online learning is un-demoable in 120s and infeasible in 6h; its rubric value is Creativity (the reframe) + Impact (a recovery lever), both additive to a working vasooli core, never a replacement. See M-Stretch-1. | Core (M1–M3) untouched; harness gated on M3 verified |
