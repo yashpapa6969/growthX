@@ -1,0 +1,135 @@
+// Vasooli — unified relationship-manager memory layer.
+// This schema IS the Memory & Context rubric evidence: exact, governed, structured.
+// Harness models (Persona/Learning/Playbook + Interaction.persona*) are UNUSED until
+// M-Stretch-1 (see IDEA_SCOPE.md §8). Present now so no migration is needed later.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id             String        @id @default(cuid())
+  name           String
+  phone          String        @unique
+  language       String        @default("hi-IN")
+  trustScore     Int           @default(100) // drives escalation tone (history-governed ladder)
+  historySummary String? // short relationship memory carried into the call opening
+  escalationStage String       @default("none") // none | nudged | called | escalated
+  createdAt      DateTime      @default(now())
+  orders         Order[]
+  dues           Due[]
+  interactions   Interaction[]
+}
+
+model Product {
+  id       String @id @default(cuid())
+  name     String
+  nameHi   String
+  price    Int // whole rupees
+  category String
+  imageUrl String?
+}
+
+model Order {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  items      Json // [{ productId, name, qty, price }]
+  total      Int
+  onKhata    Boolean  @default(true)
+  simDate    DateTime // event simulated clock, not wall time
+  createdAt  DateTime @default(now())
+  due        Due?
+}
+
+model Due {
+  id         String    @id @default(cuid())
+  orderId    String    @unique
+  order      Order     @relation(fields: [orderId], references: [id])
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  amount     Int
+  balance    Int
+  status     String    @default("open") // open | partial | paid
+  createdAt  DateTime  @default(now())
+  promises   Promise[]
+  payments   Payment[]
+}
+
+model Promise {
+  id           String   @id @default(cuid())
+  dueId        String
+  due          Due      @relation(fields: [dueId], references: [id])
+  customerId   String
+  promisedDate DateTime
+  source       String // nudge | call
+  kept         Boolean  @default(false)
+  supersededAt DateTime? // set when a correction replaces this promise (stays for provenance)
+  createdAt    DateTime @default(now())
+}
+
+model Payment {
+  id             String    @id @default(cuid())
+  dueId          String
+  due            Due       @relation(fields: [dueId], references: [id])
+  razorpayLinkId String?
+  amount         Int
+  status         String    @default("created") // created | paid | failed
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model Interaction {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  surface    String // order | nudge | call
+  simTs      DateTime
+  transcript String?
+  summary    String?
+  outcome    String? // ordered | promise_recorded | paid | escalated | no_contact
+  tone       String? // warm | neutral | firm
+  createdAt  DateTime @default(now())
+
+  // ---- M-Stretch-1 harness fields (nullable, unused until gated) ----
+  personaId    String?
+  outcomeScore Float?
+  recovered    Int?
+  turns        Int?
+  sentiment    String?
+}
+
+model DemoClock {
+  id      String   @id @default("singleton")
+  simDate DateTime
+}
+
+// ---- M-Stretch-1: optimization harness (offline eval + human-gated promotion) ----
+model Persona {
+  id             String  @id @default(cuid())
+  name           String
+  promptFragment String
+  toneParams     Json?
+  active         Boolean @default(true)
+}
+
+model Learning {
+  id           String   @id @default(cuid())
+  play         String
+  evidence     String?
+  observedLift Float?
+  promoted     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model Playbook {
+  id        String   @id @default("singleton")
+  content   String   @default("")
+  version   Int      @default(1)
+  updatedAt DateTime @default(now()) @updatedAt
+}
