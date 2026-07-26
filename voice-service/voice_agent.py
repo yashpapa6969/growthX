@@ -103,7 +103,7 @@ async def _llm(client: httpx.AsyncClient, system_prompt: str,
     # Near-greedy temperatures make it ruminate in loops, so we sample at 0.6
     # and retry hotter to break a loop. Starter tier caps max_tokens at 4096.
     last_content = None
-    for max_tokens, temperature in ((3000, 0.6), (4096, 0.8)):
+    for max_tokens, temperature in ((4096, 0.6), (4096, 0.8)):
         resp = await client.post(
             f"{SARVAM_BASE}/v1/chat/completions",
             headers={"api-subscription-key": _api_key()},
