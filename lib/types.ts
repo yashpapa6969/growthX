@@ -39,10 +39,16 @@ export interface TurnContext {
   personaPrompt?: string;
 }
 
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface VoiceTurnRequest {
   audioB64?: string; // base64 audio from the mic (push-to-talk)
   mime?: string; // audio mime from MediaRecorder, e.g. "audio/webm" (Saaras accepts webm/opus directly)
   text?: string; // typed fallback / inbox replies
+  turns?: ConversationTurn[]; // prior turns this session -> continued conversation over HTTP (no websocket)
   role: Role;
   context: TurnContext;
 }

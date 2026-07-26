@@ -29,6 +29,7 @@ export function AssistantPanel({ customerId, role }: { customerId: string; role:
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const audioEl = useRef<HTMLAudioElement | null>(null);
+  const turns = useRef<{ role: "user" | "assistant"; content: string }[]>([]); // continued conversation memory
 
   const start = useCallback(async () => {
     setError("");
@@ -77,13 +78,14 @@ export function AssistantPanel({ customerId, role }: { customerId: string; role:
       const res = await fetch("/api/voice/turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audioB64, mime: "audio/webm", role, context: await fetchContext(customerId, role) }),
+        body: JSON.stringify({ audioB64, mime: "audio/webm", role, turns: turns.current, context: await fetchContext(customerId, role) }),
       });
       setLatency(res.headers.get("x-latency-total") ? `${res.headers.get("x-latency-total")}ms` : "");
       const data = (await res.json()) as VoiceTurnResponse & { error?: string };
       if (!res.ok || data.error) { setError(`server: ${data.error ?? res.status}`); setState("idle"); return; }
 
       setTranscript(data.transcript); setAgentText(data.agentText); setIntents(data.intents ?? []); setTone(data.tone);
+      turns.current = [...turns.current, { role: "user", content: data.transcript }, { role: "assistant", content: data.agentText }].slice(-12);
       if (data.agentAudioB64) await playAudio(data.agentAudioB64);
       else setState("idle");
     } catch (e: any) {
