@@ -45,11 +45,11 @@ function parseAgentJSON(raw: string): { reply: string; tone: Tone; intents: Inte
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as VoiceTurnRequest;
-    const { audioB64, text, role, context } = body;
+    const { audioB64, mime, text, role, context } = body;
     if (!role || !context) return NextResponse.json({ error: "role and context are required" }, { status: 400 });
 
     const t0 = Date.now();
-    const transcript = text ?? (audioB64 ? await transcribe(audioB64, { mode: "codemix", languageCode: context.customer.language }) : "");
+    const transcript = text ?? (audioB64 ? await transcribe(audioB64, { mode: "codemix", languageCode: context.customer.language, mime }) : "");
     const tSTT = Date.now();
 
     const raw = await chat([
@@ -59,11 +59,12 @@ export async function POST(req: NextRequest) {
     const tLLM = Date.now();
 
     const { reply, tone, intents } = parseAgentJSON(raw);
-    const agentAudioB64 = await tts(reply, { languageCode: context.customer.language, tone });
+    const safeReply = reply?.trim() || "Ek minute, main aapka hisaab dekh raha hoon.";
+    const agentAudioB64 = await tts(safeReply, { languageCode: context.customer.language, tone });
     const tTTS = Date.now();
 
     // Per-hop latency lands in response headers so the UI can show p50/p95 on stage (Voice evidence).
-    const res: VoiceTurnResponse = { transcript, agentText: reply, agentAudioB64, tone, intents };
+    const res: VoiceTurnResponse = { transcript, agentText: safeReply, agentAudioB64, tone, intents };
     return NextResponse.json(res, {
       headers: { "x-latency-stt": String(tSTT - t0), "x-latency-llm": String(tLLM - tSTT), "x-latency-tts": String(tTTS - tLLM), "x-latency-total": String(tTTS - t0) },
     });

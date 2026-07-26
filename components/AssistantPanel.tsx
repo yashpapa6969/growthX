@@ -73,7 +73,7 @@ export function AssistantPanel({ customerId, role }: { customerId: string; role:
     const res = await fetch("/api/voice/turn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ audioB64, role, context: await fetchContext(customerId, role) }),
+      body: JSON.stringify({ audioB64, mime: "audio/webm", role, context: await fetchContext(customerId, role) }),
     });
     setLatency(res.headers.get("x-latency-total") ? `${res.headers.get("x-latency-total")}ms` : "");
     const data = (await res.json()) as VoiceTurnResponse;
