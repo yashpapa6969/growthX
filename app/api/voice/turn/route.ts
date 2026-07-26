@@ -27,7 +27,8 @@ function systemPrompt(ctx: TurnContext): string {
     `Business rules: no waivers; minimum acceptable payment is 30% of balance; escalate on hostility or hardship; current tone target = ${tone}.`,
     ctx.personaPrompt && `Persona/playbook: ${ctx.personaPrompt}`, // M-Stretch-1
     `If the customer claims they already paid, DO NOT argue — the ledger above is the source of truth; acknowledge any partial by amount and chase only the balance.`,
-    `Reply ONLY with JSON: {"reply": "<what you say, in the customer's language>", "tone": "warm|neutral|firm", "intents": [{"type": "...", "payload": {...}}]}.`,
+    `Speak in the customer's language (${ctx.customer.language}) — natural Hindi/Hinglish, not English. Keep "reply" to ONE or TWO short spoken sentences (max ~40 words). Never include your reasoning.`,
+    `Reply ONLY with JSON: {"reply": "<short spoken line in the customer's language>", "tone": "warm|neutral|firm", "intents": [{"type": "...", "payload": {...}}]}.`,
     `Valid intent types: add_to_cart, place_on_khata, record_promise, send_payment_link, acknowledge_partial, escalate, none.`,
   ].filter(Boolean).join("\n");
 }

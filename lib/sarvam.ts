@@ -74,8 +74,9 @@ export async function chat(
   });
   if (!res.ok) throw new Error(`Sarvam chat ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  const msg = data.choices?.[0]?.message ?? {};
-  return msg.content || msg.reasoning_content || "";
+  // Return `content` only. NEVER fall back to reasoning_content — it's the model's private
+  // scratchpad (can be thousands of chars) and would blow past Bulbul's 2500-char TTS limit.
+  return data.choices?.[0]?.message?.content ?? "";
 }
 
 /** Text -> speech. Tone maps to pace/pitch so the escalation ladder is audible (Voice score). */
@@ -85,6 +86,7 @@ export async function tts(
 ): Promise<string | null> {
   if (MOCK) return null; // client plays nothing / uses a beep in mock mode
   if (!text || !text.trim()) return null; // never send empty text (Bulbul 400s)
+  text = text.trim().slice(0, 2400); // Bulbul hard limit is 2500 chars; stay safely under
 
   // Bulbul V3 supports `pace` but NOT `pitch`/`loudness` (verified 2026-07-26 — they 400).
   // The tone ladder rides on pace + speaker choice.
