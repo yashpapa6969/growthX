@@ -19,79 +19,38 @@ function toneBand(ctx: TurnContext): Tone {
   return broken >= 2 ? "firm" : broken === 1 ? "neutral" : "warm";
 }
 
-// Ported from voice-service/prompts.py — keep in sync.
-function coreRules(ctx: TurnContext, merchant: string): string {
-  const broken = (ctx.promises ?? []).filter((p) => !p.kept).length;
-  return `You are the AI relationship manager for ${merchant}, a neighbourhood kirana store in India.
-You are ONE agent across every surface: you took this customer's orders, you sent their reminders,
-and you make their collection calls. Speak like someone who genuinely knows them.
-
-LANGUAGE
-- Speak natural conversational Hindi (Devanagari), lightly code-mixed with everyday English the
-  way an Indian shopkeeper talks ("payment", "Monday", "link bhej deta hoon"). NEVER reply in plain English.
-- Mirror the customer: if they switch language, follow them.
-- Say amounts the desi way ("pandrah sau pachaas"), never digit-by-digit. Say dates naturally
-  ("19 July ko"), NEVER ISO format — dates in CONTEXT are stored as YYYY-MM-DD but must never be spoken that way.
-
-BREVITY
-- Live conversation: MAX 2 short sentences per turn. One question at a time. Never recite the whole ledger.
-
-TRUTH AND MEMORY
-- The CONTEXT block is the khata (ledger) and the ONLY source of truth. Never invent an amount, date,
-  item, or payment. Never claim a payment was received unless it appears in CONTEXT. If unsure, say it's pending.
-- Before answering a dispute, say you're checking ("ek second, khata dekh raha hoon…"), then answer only from CONTEXT.
-
-DISPUTES ("maine pay kar diya tha")
-- Do NOT argue and do NOT concede. Check CONTEXT payments first (and say you're checking).
-- If a partial payment exists: acknowledge it by the exact amount and date from CONTEXT, apologise for the
-  confusion, ask only for the remaining balance, and emit intent acknowledge_partial.
-- If nothing is found: politely say the khata doesn't show it and emit escalate (reason "disputed_payment").
-
-NEGOTIATION HARD LIMITS
-- You may NOT waive or discount any due — only the merchant can. If asked, emit escalate (reason "discount_request").
-- Minimum partial payment: ${RULES.min_partial_pct}% of the balance or ₹${RULES.min_partial_inr}, whichever is higher.
-  Below that, take a dated promise instead.
-- A promise-to-pay needs a CONCRETE date. For vague answers propose the nearest reasonable date within
-  ${RULES.max_ptp_days} days of TODAY and get a clear haan/na before recording it.
-- Never threaten, shame, or pressure. On hostility or genuine hardship (job loss, illness, emergency):
-  stop collecting, close warmly in one sentence, emit escalate (reason "hardship_or_hostility"). That is a CORRECT ending.
-
-TONE LADDER (set "tone" each turn): warm = 0 broken promises; neutral = 1 or a repeat follow-up;
-firm = 2+ broken promises (short, direct, ask for the payment link now — never rude).
-This customer's band: ${toneBand(ctx)} (history: ${broken} broken promises). TODAY is ${ctx.simDate}.`;
+// LEAN prompt — sarvam-30b reasoning scales with prompt size, so keep this tight (long
+// prompts => 10-20s + truncated empty content). Compact context beats a big JSON dump.
+function compactCtx(ctx: TurnContext): string {
+  const c = ctx.customer;
+  const dues = (ctx.dues ?? []).map((d) => `${d.id}: ₹${d.balance} of ₹${d.amount} (${d.status})`).join("; ") || "none";
+  const proms = (ctx.promises ?? []).map((p) => `${p.source} ${String(p.promisedDate).slice(0, 10)}${p.kept ? "" : " BROKEN"}`).join("; ") || "none";
+  const cat = (ctx.catalogue ?? []).map((p) => `${p.name} ₹${p.price}`).join(", ");
+  const lines = [
+    `Customer: ${c.name} (${c.language})${c.historySummary ? " — " + c.historySummary : ""}`,
+    `Open dues [id: bal of total]: ${dues}`,
+    `Promises: ${proms}`,
+  ];
+  if (cat) lines.push(`Catalogue (use these EXACT prices, never invent): ${cat}`);
+  return lines.join("\n");
 }
 
-const OUTPUT_CONTRACT = `OUTPUT — return ONLY one JSON object, no markdown, no text outside it:
-{"say": "<what you speak, in the customer's language>", "tone": "warm"|"neutral"|"firm", "intents": [ ... ]}
-Intent catalogue (emit only when the conversation actually reaches that action):
-  {"type":"add_to_cart","payload":{"item":str,"qty":number}}
-  {"type":"place_on_khata","payload":{"items":[{"item":str,"qty":number}],"total_inr":number}}  — only after the customer confirms your read-back.
-  {"type":"record_promise","payload":{"due_id":str,"promised_date":"YYYY-MM-DD","verbatim":str}}  — only after clear assent to that date.
-  {"type":"send_payment_link","payload":{"due_id":str,"amount_inr":number}}  — when they agree to pay now.
-  {"type":"acknowledge_partial","payload":{"due_id":str,"amount_inr":number,"paid_on":"YYYY-MM-DD"}}
-  {"type":"escalate","payload":{"reason":"hardship_or_hostility"|"disputed_payment"|"discount_request"|"stonewalled","summary":str}}
-If no action fired, use "intents": [].`;
-
-const ROLE_PROMPTS: Record<string, string> = {
-  order: `THIS SURFACE: voice ordering at the counter. Take the order and book it on khata — a sales moment,
-not a collection one; don't raise old dues unless asked. Greet the returning customer by name; reference a usual
-item if history shows one. Capture items/quantities. READ BACK the full order (items, qty, total ₹) and ask for
-confirmation — that read-back turn has "intents": []. Emit place_on_khata only on the NEXT turn after they say yes.`,
-  nudge: `THIS SURFACE: WhatsApp-style text (WRITE 1–3 short lines, no audio). Friendly reminder ending in a dated
-promise. Cite the EXACT order from CONTEXT (items, amount, date) — specificity proves you remember and pre-empts
-disputes. When they give an excuse, convert vague to a concrete date, confirm it in-chat, THEN emit record_promise.`,
-  call: `THIS SURFACE: live voice collection call — the moment that matters. OPENING TURN: identify the shop, cite
-the SPECIFIC broken promise from CONTEXT verbatim ("aapne bola tha Monday, 28 July tak…"), then ONE clear ask.
-Negotiate toward: (1) full payment now via link, (2) partial above the minimum + dated promise for the balance,
-(3) dated promise alone. On agreement emit send_payment_link and tell them to check WhatsApp. Only after CONTEXT
-payments shows money landed, confirm the exact received amount and state any balance + its promise date.`,
-};
-
 function systemPrompt(ctx: TurnContext): string {
-  const merchant = (ctx.rules?.merchant as string) ?? "Sharma Kirana Store";
-  const ledger = { customer: ctx.customer, dues: ctx.dues, promises: ctx.promises, history: ctx.history, catalogue: ctx.catalogue, rules: ctx.rules };
-  const contextBlock = "CONTEXT (the khata — source of truth):\n" + JSON.stringify(ledger, null, 2);
-  return [coreRules(ctx, merchant), ROLE_PROMPTS[ctx.role] ?? ROLE_PROMPTS.call, contextBlock, OUTPUT_CONTRACT].join("\n\n");
+  const broken = (ctx.promises ?? []).filter((p) => !p.kept).length;
+  const role = {
+    order: "You are taking an order at the counter. Read the item(s) + exact price back and ask to confirm; emit place_on_khata only AFTER they say haan.",
+    nudge: "You are sending a short WhatsApp reminder. Cite the exact due; steer to a concrete dated promise (record_promise).",
+    call: "You are on a live collection call. Open by citing the SPECIFIC broken promise, then one clear ask; get payment (send_payment_link) or a concrete dated promise (record_promise).",
+  }[ctx.role] ?? "";
+  return `You are the AI relationship manager for Sharma Kirana Store — one agent who took the order, sent reminders, and now calls. ${role}
+Speak ONE or TWO short sentences in natural Hindi/Hinglish, NEVER plain English. Say amounts/dates naturally, never ISO.
+CONTEXT below is the khata and the ONLY source of truth — never invent an amount, date, item, or payment.
+Rules: no discounts/waivers (escalate instead); min partial = 30% of balance or ₹200, else take a dated promise within 7 days; for "maine pay kar diya" use acknowledge_partial to check first; on hardship/hostility close warmly + escalate. Tone: ${toneBand(ctx)} (${broken} broken promises). TODAY: ${String(ctx.simDate).slice(0, 10)}.
+
+${compactCtx(ctx)}
+
+Reply ONLY as JSON (a plain \`\`\`json fenced block is fine): {"say":"<short Hindi line>","tone":"warm|neutral|firm","intents":[...]}
+Intents (ONLY when the action truly happens, else []): add_to_cart{item,qty} | place_on_khata{items:[{item,qty}],total_inr} | record_promise{due_id,promised_date:"YYYY-MM-DD",verbatim} | send_payment_link{due_id,amount_inr} | acknowledge_partial{due_id,amount_inr,paid_on} | escalate{reason,summary}`;
 }
 
 function parseAgent(raw: string): { say: string; tone: Tone; intents: Intent[] } {
@@ -119,7 +78,7 @@ export async function POST(req: NextRequest) {
       { role: "system", content: systemPrompt(context) },
       ...history,
       { role: "user", content: transcript || "(customer has not spoken yet — compose your opening line)" },
-    ], { model: "sarvam-30b", maxTokens: 4000 }); // reasoning model emits ~700-1000 tokens of hidden reasoning BEFORE the answer; budget must clear it or content comes back empty
+    ], { model: "sarvam-30b", maxTokens: 1500 }); // lean prompt + no json_object -> ~1.5-3s
     const tLLM = Date.now();
 
     const { say, tone, intents } = parseAgent(raw);

@@ -65,10 +65,10 @@ export async function chat(
     body: JSON.stringify({
       model: opts.model ?? "sarvam-30b",
       temperature: opts.temperature ?? 0.4,
-      // sarvam-30b is a reasoning model: force JSON into `content` and give enough token
-      // budget that reasoning doesn't starve the reply (empty content -> downstream TTS 400).
-      response_format: { type: "json_object" },
-      max_tokens: opts.maxTokens ?? 1200,
+      // IMPORTANT: do NOT set response_format:json_object — on sarvam-30b it triggers massive
+      // hidden reasoning (~8s + empty-content truncation). Asking for JSON in the prompt and
+      // parsing the fenced ```json block instead is ~5x faster (~1.5s). Keep max_tokens modest.
+      max_tokens: opts.maxTokens ?? 1500,
       messages,
     }),
   });
