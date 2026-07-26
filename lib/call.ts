@@ -51,10 +51,9 @@ export async function buildAgentVariables(customerId: string) {
   const latestPaid = due.payments[0];
   const partialPaidTotal = due.payments.reduce((s, p) => s + p.amount, 0);
 
+  // NOTE: Sarvam rejects (422) any agent_variable not declared in the app's config, so we do NOT
+  // send customerId/dueId here. The post-call webhook correlates by phone number instead.
   const agentVariables = {
-    // Correlation ids so the post-call webhook (/api/call/outcome) can match the call to a ledger row.
-    customerId: customer.id,
-    dueId: due.id,
     userName: customer.name,
     order_items_summary: orderItemsSummary,
     due_amount: String(due.amount),
