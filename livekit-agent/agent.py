@@ -18,12 +18,13 @@ installed version, run `python agent.py console` and adjust — the error points
 import json
 import logging
 import os
+from datetime import datetime, timezone
 
 import httpx
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli, function_tool, RunContext
 from livekit.agents.voice import Agent, AgentSession
-from livekit.plugins import sarvam, silero
+from livekit.plugins import openai, sarvam, silero
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -41,9 +42,36 @@ async def _get(path: str, params: dict) -> dict:
 
 
 async def _post(path: str, body: dict) -> dict:
-    async with httpx.AsyncClient(timeout=15) as c:
+    async with httpx.AsyncClient(timeout=20) as c:
         r = await c.post(f"{WEB}{path}", json=body)
         return r.json() if r.headers.get("content-type", "").startswith("application/json") else {"ok": r.is_success}
+
+
+def _extract_turns(session) -> list:
+    """Best-effort transcript extraction for hangup scoring. session.history is a ChatContext
+    whose items carry role + text content; shapes differ across livekit-agents versions, so probe
+    defensively and keep only clean user/assistant text turns. Never raises."""
+    turns: list = []
+    try:
+        history = getattr(session, "history", None)
+        items = getattr(history, "items", None) if history is not None else None
+        if items is None and history is not None:
+            items = getattr(history, "messages", None) or list(history)
+        for it in items or []:
+            role = getattr(it, "role", None)
+            if role not in ("user", "assistant"):
+                continue
+            content = getattr(it, "content", None)
+            if content is None:
+                content = getattr(it, "text", None)
+            if isinstance(content, (list, tuple)):
+                content = " ".join(str(c) for c in content if c is not None)
+            text = str(content).strip() if content is not None else ""
+            if text:
+                turns.append({"role": role, "content": text})
+    except Exception:
+        pass
+    return turns
 
 
 def build_instructions(role: str, ctx: dict) -> str:
@@ -75,16 +103,24 @@ TOOLS (call them at the right moment; never mention tools aloud):
 - escalate(reason, summary): hardship, hostility, or a discount request. A polite close + escalate is a CORRECT ending.
 
 CONTEXT (the khata — source of truth):
-{json.dumps({k: ctx.get(k) for k in ("customer", "dues", "promises", "history", "rules") if ctx.get(k) is not None}, ensure_ascii=False, indent=2)}"""
+{json.dumps({k: ctx.get(k) for k in ("customer", "dues", "promises", "history", "rules") if ctx.get(k) is not None}, ensure_ascii=False, indent=2)}""" + (f"\n\n{ctx.get('personaPrompt')}" if ctx.get("personaPrompt") else "")
 
 
 class VasooliAgent(Agent):
     def __init__(self, instructions: str, customer_id: str, ctx: dict):
         lang = (ctx.get("customer") or {}).get("language", "hi-IN")
+        # Fast dialogue brain (Gemini/OpenAI-compat) when LLM_* env is set; else slow sarvam-30b.
+        # Saaras STT + Bulbul TTS stay Sarvam (the scored Voice).
+        if os.environ.get("LLM_BASE_URL") and os.environ.get("LLM_API_KEY") and os.environ.get("LLM_MODEL"):
+            llm = openai.LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_BASE_URL"], api_key=os.environ["LLM_API_KEY"])
+            log.info("dialogue LLM: %s (fast, OpenAI-compat)", os.environ["LLM_MODEL"])
+        else:
+            llm = sarvam.LLM(model="sarvam-30b")
+            log.info("dialogue LLM: sarvam-30b (fallback)")
         super().__init__(
             instructions=instructions,
             stt=sarvam.STT(model="saaras:v3", mode="transcribe", language=lang),
-            llm=sarvam.LLM(model="sarvam-30b"),
+            llm=llm,
             tts=sarvam.TTS(target_language_code=lang, model="bulbul:v3", speaker=SPEAKER),
         )
         self.customer_id = customer_id
@@ -126,18 +162,42 @@ async def entrypoint(ctx: JobContext):
     except Exception:
         pass
     customer_id = meta.get("customerId")
+    persona_id = meta.get("personaId")  # A/B persona pinned by the token route
     role = meta.get("role", "call")
-    log.info("room=%s customer=%s role=%s", ctx.room.name, customer_id, role)
+    call_start = datetime.now(timezone.utc).isoformat()
+    log.info("room=%s customer=%s role=%s persona=%s", ctx.room.name, customer_id, role, persona_id)
 
     data = {}
     if customer_id:
+        params = {"customerId": customer_id, "role": role}
+        if persona_id:
+            params["personaId"] = persona_id
         try:
-            data = await _get("/api/context", {"customerId": customer_id, "role": role})
+            data = await _get("/api/context", params)
         except Exception as e:
             log.warning("context fetch failed: %s", e)
+    persona_id = persona_id or data.get("personaId")  # fall back to whatever /api/context assigned
     instructions = build_instructions(role, data) if data else "You are a kirana relationship manager. Speak Hindi/Hinglish, be brief."
 
     session = AgentSession(vad=silero.VAD.load())
+
+    # Score the collection call at hangup: serialize the transcript and POST it to the harness.
+    # Best-effort — never crash the worker if the history API differs on the installed version.
+    async def _score_on_shutdown():
+        if not customer_id or role != "call":
+            return
+        try:
+            turns = _extract_turns(session)
+            if not turns:
+                log.info("hangup: no turns to score")
+                return
+            await _post("/api/harness/score", {"customerId": customer_id, "personaId": persona_id, "turns": turns, "callStart": call_start})
+            log.info("hangup: scored call (%d turns, persona=%s)", len(turns), persona_id)
+        except Exception as e:
+            log.warning("hangup scoring failed: %s", e)
+
+    ctx.add_shutdown_callback(_score_on_shutdown)
+
     await session.start(agent=VasooliAgent(instructions, customer_id or "", data), room=ctx.room)
 
 

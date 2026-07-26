@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClockControl } from "@/components/ClockControl";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,11 +23,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="border-b bg-white">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
             <Link href="/" className="font-bold text-khata">वसूली · Vasooli</Link>
-            <nav className="flex gap-4 text-sm">
-              {nav.map((n) => (
-                <Link key={n.href} href={n.href} className="text-gray-600 hover:text-khata">{n.label}</Link>
-              ))}
-            </nav>
+            <div className="flex items-center gap-4">
+              <nav className="flex gap-4 text-sm">
+                {nav.map((n) => (
+                  <Link key={n.href} href={n.href} className="text-gray-600 hover:text-khata">{n.label}</Link>
+                ))}
+              </nav>
+              <ClockControl />
+            </div>
           </div>
         </header>
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>

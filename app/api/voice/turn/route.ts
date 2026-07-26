@@ -46,7 +46,7 @@ function systemPrompt(ctx: TurnContext): string {
 Speak ONE or TWO short sentences in natural Hindi/Hinglish, NEVER plain English. Say amounts/dates naturally, never ISO.
 CONTEXT below is the khata and the ONLY source of truth — never invent an amount, date, item, or payment.
 Rules: no discounts/waivers (escalate instead); min partial = 30% of balance or ₹200, else take a dated promise within 7 days; for "maine pay kar diya" use acknowledge_partial to check first; on hardship/hostility close warmly + escalate. Tone: ${toneBand(ctx)} (${broken} broken promises). TODAY: ${String(ctx.simDate).slice(0, 10)}.
-
+${ctx.personaPrompt ? "\n" + ctx.personaPrompt + "\n" : ""}
 ${compactCtx(ctx)}
 
 Reply ONLY as JSON (a plain \`\`\`json fenced block is fine): {"say":"<short Hindi line>","tone":"warm|neutral|firm","intents":[...]}

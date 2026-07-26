@@ -87,7 +87,47 @@ async function main() {
   ] });
   await prisma.playbook.upsert({ where: { id: "singleton" }, create: { id: "singleton", content: "" }, update: {} });
 
-  console.log("Seeded: 10 products, 3 customers (Rahul/Meena/Amit), 3 personas. simDate =", SIM_NOW.toISOString());
+  // --- Scored-call baseline so the harness leaderboard shows a REAL persona gap on stage. ---
+  // createMany returns no ids, so re-fetch personas and map by name.
+  const personas = await prisma.persona.findMany();
+  const pid = (name: string) => personas.find((p) => p.name === name)!.id;
+  const custIds = [rahul.id, meena.id, amit.id];
+  const scored = [
+    // Warm Didi — leader: recovery ~0.80, avg score ~4.28
+    { persona: "Warm Didi", score: 4.5, recovered: 1, turns: 5, sentiment: "positive", outcome: "resolved" },
+    { persona: "Warm Didi", score: 4.2, recovered: 1, turns: 6, sentiment: "positive", outcome: "promise_to_pay" },
+    { persona: "Warm Didi", score: 4.4, recovered: 1, turns: 4, sentiment: "positive", outcome: "resolved" },
+    { persona: "Warm Didi", score: 4.0, recovered: 1, turns: 7, sentiment: "neutral", outcome: "promise_to_pay" },
+    { persona: "Warm Didi", score: 4.3, recovered: 0, turns: 6, sentiment: "neutral", outcome: "incomplete" },
+    // Data-driven Negotiator — mid: recovery ~0.60, avg score ~3.78
+    { persona: "Data-driven Negotiator", score: 3.9, recovered: 1, turns: 6, sentiment: "neutral", outcome: "promise_to_pay" },
+    { persona: "Data-driven Negotiator", score: 3.8, recovered: 1, turns: 7, sentiment: "neutral", outcome: "resolved" },
+    { persona: "Data-driven Negotiator", score: 3.7, recovered: 0, turns: 8, sentiment: "negative", outcome: "incomplete" },
+    { persona: "Data-driven Negotiator", score: 3.9, recovered: 1, turns: 5, sentiment: "positive", outcome: "promise_to_pay" },
+    { persona: "Data-driven Negotiator", score: 3.6, recovered: 0, turns: 9, sentiment: "neutral", outcome: "callback" },
+    // Firm Munim — lowest: recovery ~0.50, avg score ~3.40
+    { persona: "Firm Munim", score: 3.5, recovered: 1, turns: 4, sentiment: "neutral", outcome: "resolved" },
+    { persona: "Firm Munim", score: 3.2, recovered: 0, turns: 6, sentiment: "negative", outcome: "refused" },
+    { persona: "Firm Munim", score: 3.6, recovered: 1, turns: 5, sentiment: "neutral", outcome: "promise_to_pay" },
+    { persona: "Firm Munim", score: 3.3, recovered: 0, turns: 7, sentiment: "negative", outcome: "incomplete" },
+  ];
+  await prisma.interaction.createMany({
+    data: scored.map((s, i) => ({
+      customerId: custIds[i % custIds.length],
+      surface: "call",
+      simTs: daysAgo(3 + (i % 5)),
+      summary: `${s.persona}: ${s.outcome.replace(/_/g, " ")} (score ${s.score}/5).`,
+      outcome: s.outcome,
+      tone: s.persona === "Warm Didi" ? "warm" : s.persona === "Firm Munim" ? "firm" : "neutral",
+      personaId: pid(s.persona),
+      outcomeScore: s.score,
+      recovered: s.recovered,
+      turns: s.turns,
+      sentiment: s.sentiment,
+    })),
+  });
+
+  console.log("Seeded: 10 products, 3 customers (Rahul/Meena/Amit), 3 personas,", scored.length, "scored calls. simDate =", SIM_NOW.toISOString());
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());

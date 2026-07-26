@@ -31,8 +31,9 @@ export function escalationTone(trustScore: number, brokenPromises: number): "war
   return "warm";
 }
 
-/** Build the stateless context the voice service needs for one turn. */
-export async function buildTurnContext(customerId: string, role: Role): Promise<TurnContext> {
+/** Build the stateless context the voice service needs for one turn.
+ *  `personaId` pins a persona (A/B); if omitted, one is round-robin assigned. */
+export async function buildTurnContext(customerId: string, role: Role, personaId?: string): Promise<TurnContext> {
   const customer = await prisma.customer.findUniqueOrThrow({ where: { id: customerId } });
   const dues = await prisma.due.findMany({
     where: { customerId, status: { not: "paid" } },
@@ -58,9 +59,22 @@ export async function buildTurnContext(customerId: string, role: Role): Promise<
     ? (await prisma.product.findMany()).map((p) => ({ name: p.name, nameHi: p.nameHi, price: p.price }))
     : undefined;
 
-  // TODO(M-Stretch-1): merge active persona.promptFragment + Playbook.content into personaPrompt.
+  // Persona (A/B) + shared Playbook merged into a single prompt block the voice agents splice in.
+  // Dynamic import breaks the memory<->harness module cycle (harness imports from here).
+  const { assignPersona } = await import("./harness");
+  const persona = personaId
+    ? await prisma.persona.findUnique({ where: { id: personaId } })
+    : await assignPersona();
+  const playbook = await prisma.playbook.findUnique({ where: { id: "singleton" } });
+  const personaPrompt = persona
+    ? `PERSONA — embody this collector's style: ${persona.promptFragment}` +
+      (playbook?.content ? `\n\nSHARED PLAYBOOK (promoted winning tactics — apply them):\n${playbook.content}` : "")
+    : undefined;
+
   return {
     catalogue,
+    personaPrompt,
+    personaId: persona?.id,
     role,
     customer: {
       id: customer.id,

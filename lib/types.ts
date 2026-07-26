@@ -38,6 +38,7 @@ export interface TurnContext {
   simDate: string;
   // M-Stretch-1: active persona prompt fragment + shared playbook, merged.
   personaPrompt?: string;
+  personaId?: string; // which persona is pinned for this call (A/B assignment)
 }
 
 export interface ConversationTurn {

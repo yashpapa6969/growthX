@@ -13,6 +13,7 @@ export function LiveCall({ customers }: { customers: Cust[] }) {
   const [cid, setCid] = useState(customers[0]?.id ?? "");
   const [role, setRole] = useState<"order" | "call">("call");
   const [agentSpeaking, setAgentSpeaking] = useState(false);
+  const [personaName, setPersonaName] = useState("");
   const roomRef = useRef<Room | null>(null);
 
   const start = async () => {
@@ -24,6 +25,7 @@ export function LiveCall({ customers }: { customers: Cust[] }) {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || `token ${res.status}`); setStatus("error"); return; }
+      if (data.personaName) setPersonaName(data.personaName);
 
       const room = new Room({ adaptiveStream: true });
       roomRef.current = room;
@@ -51,7 +53,10 @@ export function LiveCall({ customers }: { customers: Cust[] }) {
   return (
     <div className="rounded-lg border bg-white p-4">
       <div className="mb-3 flex items-center justify-between">
-        <span className="font-semibold text-khata">Live Relationship Manager</span>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-khata">Live Relationship Manager</span>
+          {personaName && <span className="rounded bg-teal-50 px-2 py-0.5 text-xs text-teal-700">Persona: {personaName}</span>}
+        </div>
         <span className="text-xs uppercase text-gray-400">{status}{live && agentSpeaking ? " · speaking" : live ? " · listening" : ""}</span>
       </div>
 

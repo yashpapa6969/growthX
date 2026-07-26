@@ -2,7 +2,7 @@
 // This is the JTBD "money moved" proof: on payment.captured, update Payment + Due,
 // so the agent can verbally confirm the amount on the call.
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { closeDueByPayment } from "@/lib/khata";
 
 export const runtime = "nodejs";
 
@@ -22,13 +22,12 @@ export async function POST(req: NextRequest) {
     const amount = Math.round(paise / 100);
 
     if (dueId) {
-      const due = await prisma.due.findUnique({ where: { id: dueId } });
-      if (due) {
-        const newBalance = Math.max(0, due.balance - amount);
-        await prisma.$transaction([
-          prisma.payment.create({ data: { dueId, amount, status: "paid", paidAt: new Date() } }),
-          prisma.due.update({ where: { id: dueId }, data: { balance: newBalance, status: newBalance === 0 ? "paid" : "partial" } }),
-        ]);
+      // Single source of truth for "money moved": decrements the due, records the
+      // payment, AND logs a "paid" interaction so it lands on the /ledger timeline.
+      try {
+        await closeDueByPayment({ dueId, amount, source: "webhook" });
+      } catch {
+        // Swallow (e.g. due not found) so Razorpay always gets a 200 and doesn't retry.
       }
     }
   }

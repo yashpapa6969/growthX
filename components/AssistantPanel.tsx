@@ -3,8 +3,11 @@
 // Hold the button -> MediaRecorder captures -> POST /api/voice/turn -> play agent audio.
 // Playback uses a plain <audio> element (data URL) so it survives the async gap after the
 // mouse-up gesture — a WebAudio AudioContext created post-await is suspended and stays silent.
+// Intents returned by the turn are PERSISTED to the ledger via /api/intents, then the page
+// re-renders (router.refresh). For role="call" a persona is A/B-assigned + pinned per call.
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Avatar, type AgentState } from "./Avatar";
 import type { Role, VoiceTurnResponse } from "@/lib/types";
 
@@ -18,6 +21,7 @@ function blobToB64(blob: Blob): Promise<string> {
 }
 
 export function AssistantPanel({ customerId, role }: { customerId: string; role: Role }) {
+  const router = useRouter();
   const [state, setState] = useState<AgentState>("idle");
   const [tone, setTone] = useState<"warm" | "neutral" | "firm">("neutral");
   const [transcript, setTranscript] = useState("");
@@ -25,11 +29,22 @@ export function AssistantPanel({ customerId, role }: { customerId: string; role:
   const [intents, setIntents] = useState<VoiceTurnResponse["intents"]>([]);
   const [latency, setLatency] = useState("");
   const [error, setError] = useState("");
+  const [personaName, setPersonaName] = useState("");
 
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const audioEl = useRef<HTMLAudioElement | null>(null);
   const turns = useRef<{ role: "user" | "assistant"; content: string }[]>([]); // continued conversation memory
+  const personaId = useRef<string | null>(null); // A/B persona pinned for this call
+
+  // Assign (round-robin) + pin a persona for collection calls so the whole call uses one persona.
+  useEffect(() => {
+    if (role !== "call") return;
+    fetch(`/api/harness/assign?customerId=${customerId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.personaId) { personaId.current = d.personaId; setPersonaName(d.personaName ?? ""); } })
+      .catch(() => {}); // harness route optional — degrade gracefully
+  }, [role, customerId]);
 
   const start = useCallback(async () => {
     setError("");
@@ -78,7 +93,7 @@ export function AssistantPanel({ customerId, role }: { customerId: string; role:
       const res = await fetch("/api/voice/turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audioB64, mime: "audio/webm", role, turns: turns.current, context: await fetchContext(customerId, role) }),
+        body: JSON.stringify({ audioB64, mime: "audio/webm", role, turns: turns.current, context: await fetchContext(customerId, role, personaId.current) }),
       });
       setLatency(res.headers.get("x-latency-total") ? `${res.headers.get("x-latency-total")}ms` : "");
       const data = (await res.json()) as VoiceTurnResponse & { error?: string };
@@ -86,19 +101,31 @@ export function AssistantPanel({ customerId, role }: { customerId: string; role:
 
       setTranscript(data.transcript); setAgentText(data.agentText); setIntents(data.intents ?? []); setTone(data.tone);
       turns.current = [...turns.current, { role: "user" as const, content: data.transcript }, { role: "assistant" as const, content: data.agentText }].slice(-12);
+
+      // Persist any intents to the ledger, then re-render server components (ledger/timeline update live).
+      if (data.intents?.length) {
+        try {
+          await fetch("/api/intents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId, intents: data.intents }) });
+          router.refresh();
+        } catch {}
+      }
+
       if (data.agentAudioB64) await playAudio(data.agentAudioB64);
       else setState("idle");
     } catch (e: any) {
       setError(`request failed: ${e?.message ?? e}`);
       setState("idle");
     }
-  }, [customerId, role, playAudio]);
+  }, [customerId, role, playAudio, router]);
 
   return (
     <div className="rounded-lg border bg-white p-4">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-semibold text-khata">Relationship Manager</span>
-        {latency && <span className="text-xs text-gray-400">total {latency}</span>}
+        <div className="flex items-center gap-2">
+          {personaName && <span className="rounded bg-teal-50 px-2 py-0.5 text-xs text-teal-700">Persona: {personaName}</span>}
+          {latency && <span className="text-xs text-gray-400">total {latency}</span>}
+        </div>
       </div>
       <Avatar variant="orb" state={state} tone={tone} amplitude={state === "speaking" ? 0.5 : 0} />
       <button
@@ -123,9 +150,10 @@ export function AssistantPanel({ customerId, role }: { customerId: string; role:
   );
 }
 
-async function fetchContext(customerId: string, role: Role) {
+async function fetchContext(customerId: string, role: Role, personaId?: string | null) {
   try {
-    const res = await fetch(`/api/context?customerId=${customerId}&role=${role}`);
+    const url = `/api/context?customerId=${customerId}&role=${role}${personaId ? `&personaId=${personaId}` : ""}`;
+    const res = await fetch(url);
     if (res.ok) return res.json();
   } catch {}
   return { role, customer: { id: customerId, name: "Customer", language: "hi-IN" }, simDate: new Date().toISOString() };

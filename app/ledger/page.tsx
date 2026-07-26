@@ -1,6 +1,7 @@
 // Khata ledger + unified cross-surface timeline (merchant/judge view).
 // The timeline IS the Memory & Context evidence: one customer, every surface, one record.
 import { prisma } from "@/lib/db";
+import { PayButton } from "@/components/PayButton";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,10 @@ export default async function LedgerPage() {
               <div>
                 <div className="text-xs font-medium uppercase text-gray-400">Dues</div>
                 {c.dues.map((d) => (
-                  <div key={d.id} className="text-sm">₹{d.balance} of ₹{d.amount} · <span className="uppercase">{d.status}</span>{d.payments.length > 0 && ` · ${d.payments.length} payment(s)`}</div>
+                  <div key={d.id} className="flex items-center gap-2 text-sm">
+                    <span>₹{d.balance} of ₹{d.amount} · <span className="uppercase">{d.status}</span>{d.payments.length > 0 && ` · ${d.payments.length} payment(s)`}</span>
+                    {d.status !== "paid" && d.balance > 0 && <PayButton dueId={d.id} amount={d.balance} />}
+                  </div>
                 ))}
               </div>
               <div>

@@ -1,11 +1,12 @@
 // The vasooli call — the SCORED surface (Voice). Disclosed as a simulated call.
 import { prisma } from "@/lib/db";
 import { AssistantPanel } from "@/components/AssistantPanel";
+import { PayButton } from "@/components/PayButton";
 
 export const dynamic = "force-dynamic";
 
 async function getCustomers() {
-  try { return await prisma.customer.findMany({ orderBy: { trustScore: "desc" } }); }
+  try { return await prisma.customer.findMany({ include: { dues: true }, orderBy: { trustScore: "desc" } }); }
   catch { return []; }
 }
 
@@ -21,7 +22,14 @@ export default async function CallPage() {
           {customers.map((c) => (
             <div key={c.id} className="flex items-center justify-between rounded-lg border bg-white p-3 text-sm">
               <div><span className="font-medium">{c.name}</span> · trust {c.trustScore} · {c.escalationStage}</div>
-              <div className="text-gray-500">{c.historySummary?.slice(0, 60)}…</div>
+              <div className="flex items-center gap-3">
+                <span className="text-gray-500">{c.historySummary?.slice(0, 60)}…</span>
+                {c.dues
+                  .filter((d) => d.status !== "paid" && d.balance > 0)
+                  .map((d) => (
+                    <PayButton key={d.id} dueId={d.id} amount={d.balance} />
+                  ))}
+              </div>
             </div>
           ))}
         </div>

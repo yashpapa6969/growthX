@@ -186,6 +186,42 @@ export async function escalate(input: {
 }
 
 /**
+ * Close (or partially close) a due against a received payment. The SINGLE source of
+ * truth for "money moved" — used by BOTH the Razorpay webhook and the mark-paid button,
+ * so the ledger flip is identical on either path. Also logs a "paid" interaction so the
+ * payment shows up on the /ledger cross-surface timeline (the demo's memorable moment).
+ */
+export async function closeDueByPayment(input: {
+  dueId: string;
+  amount: number;
+  source?: "webhook" | "sim";
+}): Promise<{ dueId: string; balance: number; status: string; amount: number }> {
+  const { dueId } = input;
+  if (!dueId) throw new KhataError("dueId required");
+
+  const due = await prisma.due.findUnique({ where: { id: dueId } });
+  if (!due) throw new KhataError("due not found", 404);
+
+  const amount = input.amount && input.amount > 0 ? Math.round(input.amount) : due.balance;
+  const newBalance = Math.max(0, due.balance - amount);
+  const status = newBalance === 0 ? "paid" : "partial";
+
+  await prisma.$transaction([
+    prisma.payment.create({ data: { dueId, amount, status: "paid", paidAt: new Date() } }),
+    prisma.due.update({ where: { id: dueId }, data: { balance: newBalance, status } }),
+  ]);
+
+  await logInteraction({
+    customerId: due.customerId,
+    surface: "call",
+    outcome: "paid",
+    summary: `₹${amount} received${input.source === "sim" ? " (simulated)" : ""} — balance ₹${newBalance}.`,
+  });
+
+  return { dueId, balance: newBalance, status, amount };
+}
+
+/**
  * Create a payment link for a due (via the razorpay link route) and persist a
  * pending Payment row attached to the Due. Used by the send_payment_link intent.
  */

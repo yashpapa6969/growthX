@@ -2,6 +2,7 @@
 // Python agent worker knows which customer this call is for. OWNER: Engineer 1 (LiveKit).
 import { NextRequest, NextResponse } from "next/server";
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
+import { assignPersona } from "@/lib/harness";
 
 export const runtime = "nodejs";
 
@@ -18,10 +19,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "LiveKit not configured (set LIVEKIT_URL/API_KEY/API_SECRET)" }, { status: 501 });
   }
 
-  const room = `vasooli-${customerId}-${Date.now()}`;
-  const metadata = JSON.stringify({ customerId, role });
+  // A/B: round-robin assign a persona and pin it for this call (agent reads it from metadata).
+  let personaId: string | null = null;
+  let personaName: string | null = null;
+  try {
+    const persona = await assignPersona();
+    personaId = persona?.id ?? null;
+    personaName = persona?.name ?? null;
+  } catch {
+    // harness optional — call still works without a persona
+  }
 
-  // Pre-create the room carrying the customer id — the agent reads ctx.room.metadata on join.
+  const room = `vasooli-${customerId}-${Date.now()}`;
+  const metadata = JSON.stringify({ customerId, role, personaId, personaName });
+
+  // Pre-create the room carrying the customer id + persona — the agent reads ctx.room.metadata on join.
   try {
     const svc = new RoomServiceClient(httpUrl(LK_URL), API_KEY, API_SECRET);
     await svc.createRoom({ name: room, metadata, emptyTimeout: 300, maxParticipants: 4 });
@@ -34,5 +46,5 @@ export async function POST(req: NextRequest) {
   at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true, canPublishData: true });
   const token = await at.toJwt();
 
-  return NextResponse.json({ token, url: LK_URL, room });
+  return NextResponse.json({ token, url: LK_URL, room, personaName });
 }
