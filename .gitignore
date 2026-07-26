@@ -8,3 +8,8 @@ build
 .DS_Store
 next-env.d.ts
 /prisma/dev.db
+
+# python voice-service
+.venv
+__pycache__/
+voice-service/recordings/
